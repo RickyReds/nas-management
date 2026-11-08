@@ -48,6 +48,32 @@
     "notes": "Archive. Switched on once a week."
   },
   {
+    "id": "nas04",
+    "name": "nas04",
+    "type": "generic",
+    "addresses": [
+      "192.168.10.24",
+      "nas04"
+    ],
+    "mac": [
+      "02:00:5E:10:00:24"
+    ],
+    "model": "",
+    "firmware": "",
+    "wol": "untested",
+    "notes": "Another brand: no metrics, shares read via SMB.",
+    "detected": {
+      "when": "2026-05-26T10:00:00.000Z",
+      "open_ports": [
+        80,
+        443,
+        445,
+        5000
+      ],
+      "booting": false
+    }
+  },
+  {
     "id": "printer",
     "name": "printer",
     "type": "generic",

@@ -4,7 +4,6 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const zlib = require("zlib");
-const { execFile } = require("child_process");
 const S = require("./store");
 
 function log(...parts) {
@@ -271,28 +270,8 @@ function agentFile(res, name) {
   fs.createReadStream(f).pipe(res);
 }
 
-// The shares of a NAS, read by the server with its own Windows credentials.
-function shares(device) {
-  // Demo: the shares of the sample structure, without asking the NAS.
-  if (S.DEMO) {
-    const s = S.read("structure.json", {})[device.id];
-    return Promise.resolve(s ? s.volumes.flatMap(v => v.shares.map(c => c.name)) : []);
-  }
-  return new Promise((ok, ko) => {
-    const addr = device.addresses[0];
-    execFile("net", ["view", `\\\\${addr}`, "/all"], { windowsHide: true, timeout: 15000, encoding: "latin1" }, (e, out) => {
-      if (e) return ko(S.error(502, "err.sharesUnreadable", { device: device.name, error: String(out || e.message).trim().split(/\r?\n/).pop() || "-" }));
-      const names = [];
-      let inside = false;
-      for (const line of String(out).split(/\r?\n/)) {
-        if (/^-{10,}/.test(line)) { inside = true; continue; }
-        const m = inside && line.match(/^(.+?)\s{2,}(Disco|Disk|Datentr|Disque)\S*\b/);
-        if (m) names.push(m[1].trim());
-      }
-      ok(names);
-    });
-  });
-}
+// The shares of a NAS: src/smb.js.
+const shares = device => require("./smb").shares(device);
 
 // Subfolders of a share, read by the server over SMB with its own Windows
 // credentials. QNAP system folders are hidden.

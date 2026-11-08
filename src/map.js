@@ -32,11 +32,21 @@ function build(browserIp) {
   const profiles = P.profiles();
   const vault = V.list();
 
-  const tree = devices.filter(d => d.type === "qnap" || structure[d.id]).map(d => {
+  // In the tree: every QNAP; any other device once its shares have been read
+  // (structure.json) or as soon as a PC or a profile uses it, so its letters
+  // land in the grid and not among the drives to unknown servers. A device
+  // nobody uses and without shares (a printer) stays out.
+  const used = new Set(profiles.flatMap(p => p.entries.map(v => v.device)));
+  for (const m of machines) for (const u of (m.snapshot && m.snapshot.drives) || []) {
+    const p = P.split(u.path);
+    const d = p && P.deviceOf(p.server, devices);
+    if (d) used.add(d.id);
+  }
+  const tree = devices.filter(d => d.type === "qnap" || structure[d.id] || used.has(d.id)).map(d => {
     const s = structure[d.id];
     const st = states.find(x => x.id === d.id) || {};
     return {
-      id: d.id, name: d.name, model: d.model, address: d.addresses[0], addresses: d.addresses, status: st.status || "unknown",
+      id: d.id, name: d.name, type: d.type, model: d.model, address: d.addresses[0], addresses: d.addresses, status: st.status || "unknown",
       structure_read: s ? s.when : null,
       volumes: s ? s.volumes.map(v => ({ ...v, shares: v.shares.map(c => ({ ...c, letters: [] })) })) : [],
       others: [], // shares with letters but missing from the last read

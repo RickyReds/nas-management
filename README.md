@@ -1,6 +1,8 @@
 # NAS-Management
 
-A small web app for a home or small-office network with **QNAP NAS units and Windows PCs**. It shows whether each NAS is on and how it is doing, wakes it up with Wake-on-LAN, and manages the **network drive letters** of every PC and user from a single page.
+A small web app for a home or small-office network with **Windows PCs and NAS units**. It manages the **network drive letters** of every PC and user from a single page, shows whether each NAS is on, and wakes it up with Wake-on-LAN.
+
+It works with **any NAS or server that shares folders over SMB**: Synology, TrueNAS, QNAP, another Windows PC. **QNAP units get more**: CPU, memory, temperatures, disks, volumes and QTS warnings, and the map draws their volumes.
 
 - No cloud, no accounts, no npm dependencies: one Node process on a Windows machine in your network.
 - An agent on each PC mounts the drives in the user's own session, so you never have to walk to that PC to fix a letter.
@@ -11,8 +13,8 @@ A small web app for a home or small-office network with **QNAP NAS units and Win
 
 | Page | What it is for |
 |---|---|
-| **Status** | on or off, CPU, memory, temperatures, volumes, disks and QTS warnings; wake-up with Wake-on-LAN |
-| **Map** | tree NAS → volumes → shares, with a grid of drive letters: one column per PC and user, one per profile. Click a cell to change it |
+| **Status** | on or off for every device, wake-up with Wake-on-LAN; for QNAP also CPU, memory, temperatures, volumes, disks and QTS warnings |
+| **Map** | tree NAS → volumes → shares (shared folders for a NAS that is not a QNAP), with a grid of drive letters: one column per PC and user, one per profile. Click a cell to change it |
 | **Devices** | the NAS units and other devices, Wake-on-LAN test, encrypted credentials |
 | **Network drives** | PCs with the agent, drive letter profiles, jobs and their restore, network diagnostics |
 | **Settings** | export and import of the configuration, to move or rebuild an installation |
@@ -23,6 +25,7 @@ A small web app for a home or small-office network with **QNAP NAS units and Win
 ![Status page](docs/screenshots/status.png)
 ![Network drives page](docs/screenshots/drives.png)
 ![Devices page](docs/screenshots/devices.png)
+![Settings page: export and import of the configuration](docs/screenshots/settings.png)
 ![The map in the dark theme](docs/screenshots/map-dark.png)
 
 </details>
@@ -33,7 +36,7 @@ The screenshots come from the [demo](#try-the-demo): every name, address and num
 
 - **Server:** Windows 10 or 11, or Windows Server, with [Node.js](https://nodejs.org/) 22 or newer. It must stay on, with the service user logged on: the service starts at that user's logon (use automatic logon on a dedicated machine).
 - **PCs:** Windows 10 or 11 with Windows PowerShell 5.1, which is built in. No administrator rights needed for the agent.
-- **NAS:** QNAP with QTS 4.3 or 5.x for metrics and the share tree. Any other device can be added for the on/off status and Wake-on-LAN.
+- **NAS:** any NAS or server with SMB shares, for network drives, the map, status and Wake-on-LAN. Metrics and the volume tree need a QNAP with QTS 4.3 or 5.x. Other devices, a printer for example, can be added for status and Wake-on-LAN only.
 - **Network:** a trusted local network. Everything travels over plain HTTP: read [SECURITY.md](SECURITY.md).
 
 ## Try the demo
@@ -81,12 +84,14 @@ The service itself runs **not elevated**. If it stops on an error, the task star
 
 ### 2. The devices
 
-On **Devices**, add each NAS by IP or name. Adding a device tries a few ports and reads what the QNAP login page says about itself, **without logging in**.
+On **Devices**, add each NAS by IP or name. Adding a device tries a few ports, **without logging in**. A QNAP is recognised from its login page, which also gives model and firmware. Anything else becomes a **generic** device.
 
 Then add the credentials under **Devices → Credentials**, and link each one to its NAS units:
 
 - the **users the PCs mount the drives with**;
-- a **read-only QTS account for the metrics**. Set its name as `metricsUser` in `config.json`, or choose it per device in **Edit → Credential for metrics**. Do not use an administrator account.
+- for QNAP only, a **read-only QTS account for the metrics**. Set its name as `metricsUser` in `config.json`, or choose it per device in **Edit → Credential for metrics**. Do not use an administrator account.
+
+The shares of a generic NAS, for the map and for **Browse…**, are read by the server with **its own Windows credentials**, the ones saved in the Credential Manager of the service user. If the server cannot list them, save a credential for that NAS there, for example with `cmdkey /add:nas04 /user:<user> /pass`.
 
 ### 3. The PCs
 
@@ -142,12 +147,13 @@ The environment variables `NASM_PORT` and `NASM_HOST` override the file. The oth
 
 - Every minute the service checks whether each device answers, over TCP, never with a ping. A NAS that is off is a state, not an error.
 - Every 15 minutes, and when you press **Refresh now**, it reads the metrics of the QNAPs that are on, with the read-only account.
+- For a generic NAS that answered on the SMB port when it was added, it reads the list of shares at the same pace. If the list cannot be read, automatic reads stop until you press **Refresh now**: some NAS units block an address after a few failed logins.
 - **Wake up** (Status) and **Test wake-up** (Devices) send the magic packet and wait up to 5 minutes. If the NAS comes up, Wake-on-LAN is marked "works". If it does not, the page offers to mark it "not available", without doing it on its own: there may be other reasons.
 - If a NAS rejects the metrics login, the credential is suspended: see [Suspended credentials](#suspended-credentials).
 
 ### Map
 
-On the left, the tree **NAS → volumes → shares**, from the last QTS read: a NAS that is off stays on the map. On the right, one column per registered PC and user, plus one per profile if you switch them on.
+On the left, the tree **NAS → volumes → shares**, from the last read: a NAS that is off stays on the map. A QNAP shows its volumes with the space used. Any other NAS shows its shares under a single **shared folders** node, without space information. It appears once its shares have been read, or as soon as a PC or a profile uses it. On the right, one column per registered PC and user, plus one per profile if you switch them on.
 
 - **Solid letter:** the drive exists on that PC.
 - **Dashed letter:** planned in a profile.
@@ -189,7 +195,7 @@ The result shows up on the page within a minute. The checks are fixed and read-o
 
 ### Suspended credentials
 
-When a NAS rejects a credential, nobody retries it until you unlock it on the page: QNAP blocks an address after a few failed logins. Fix the password in **Devices → Credentials** first, then press **Unlock**.
+When a NAS rejects a credential, nobody retries it until you unlock it on the page: many NAS units, QNAP and Synology among them, block an address after a few failed logins. Fix the password in **Devices → Credentials** first, then press **Unlock**.
 
 ## Where things are
 

@@ -41,8 +41,9 @@ This is a spare-time project. Reports are read, but there is no guaranteed respo
 
 ### The NAS units
 
-- Metrics are read with a QTS account you choose, preferably a **read-only** one. The app never falls back to an administrator account.
-- A QNAP blocks an address after a few failed logins. So when a NAS rejects a credential, the credential is **suspended** on that NAS for everyone, and nobody retries it until you unlock it on the page.
+- On a QNAP, metrics are read with a QTS account you choose, preferably a **read-only** one. The app never falls back to an administrator account.
+- Many NAS units, QNAP and Synology among them, block an address after a few failed logins. So when a NAS rejects a credential, the credential is **suspended** on that NAS for everyone, and nobody retries it until you unlock it on the page.
+- The shares of a NAS that is not a QNAP are listed by the server with its own Windows credentials (`net view`). After a failed attempt the automatic reads stop until someone presses **Refresh now**, for the same reason.
 
 ## What it does not protect
 

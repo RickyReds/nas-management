@@ -1,9 +1,9 @@
 {
   "name": "nas-management",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "type": "commonjs",
-  "description": "Network drives, NAS status and encrypted credentials for a small Windows network with QNAP NAS units.",
+  "description": "Network drives, NAS status and encrypted credentials for a small Windows network: any SMB NAS, with metrics for QNAP.",
   "license": "MIT",
   "engines": { "node": ">=22" },
   "scripts": {

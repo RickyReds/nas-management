@@ -5,15 +5,18 @@ This page explains how NAS-Management is built and why. To install and use it, r
 ## The pieces
 
 ```
- browser ──HTTP──►  service (Node, on the Windows server)  ──HTTP 8080──►  QNAP NAS (QTS, read-only)
-                     │   data/  (JSON files, DPAPI vault)    ──TCP probe──►  any device
+ browser ──HTTP──►  service (Node, on the Windows server)  ──HTTP 8080──►  QNAP NAS (QTS, read-only metrics)
+                     │   data/  (JSON files, DPAPI vault)    ──SMB──────►  any NAS (list of shares)
+                     │                                       ──TCP probe──►  any device
                      │                                       ──UDP──────►  Wake-on-LAN broadcast
                      ▲
                      │ HTTP, every minute
             agent (PowerShell, one per PC and Windows user)  ──net use──►  NAS shares
 ```
 
-- **The service** (`src/`) is one Node process with no npm dependencies. It serves the pages and the API, probes the devices, reads the QNAP metrics and keeps all the data in `data/`.
+- **The service** (`src/`) is one Node process with no npm dependencies. It serves the pages and the API, probes the devices, reads the QNAP metrics and the shares of the other NAS units, and keeps all the data in `data/`.
+
+Two device types: **qnap**, recognised from the QTS login page, and **generic**, for everything else. Network drives, profiles, status, Wake-on-LAN and the map work for both; metrics and volumes only exist for a QNAP.
 - **The pages** (`web/`) are static HTML, CSS and plain JavaScript, with no build step. They call the JSON API and translate every text with `web/i18n/en.json` and `it.json`.
 - **The agent** (`agent/agent.ps1`) is a Windows PowerShell 5.1 script running in each user's session. It reports the user's network drives and runs the jobs the service gives it.
 
@@ -40,12 +43,13 @@ Drives are mounted with `/persistent:yes`, so Windows reconnects them at the nex
 | `src/config.js` | `data/config.json` with defaults, read once at startup |
 | `src/vault.js` | credentials and access key, DPAPI-encrypted through a PowerShell child process (data travels on stdin, never on the command line) |
 | `src/devices.js` | the device registry; adding a device probes ports and reads the QTS login page **without logging in** |
-| `src/monitor.js` | status every minute (TCP probe), QTS metrics every 15 minutes, Wake-on-LAN follow-up |
+| `src/monitor.js` | status every minute (TCP probe), QTS metrics and the shares of generic NAS units every 15 minutes, Wake-on-LAN follow-up |
 | `src/qts.js` | read-only QTS client: one session per NAS, reused; a rejected login suspends the credential |
+| `src/smb.js` | list of shares of any SMB server (`net view`), with the server's Windows credentials |
 | `src/wol.js` | magic packet, broadcast derived from the device's /24 |
 | `src/agents.js` | registered machines: registration codes, tokens, snapshots, RSA public keys |
 | `src/profiles.js` | profiles, previews, jobs for the agents, results and restore; changes made from the map |
-| `src/map.js` | builds the map: NAS → volumes → shares, with a column of letters per machine and per profile |
+| `src/map.js` | builds the map: NAS → volumes → shares, with a column of letters per machine and per profile. A generic NAS is in the tree once its shares are read or as soon as a PC or a profile uses it |
 | `src/suspensions.js` | credentials suspended after a rejected login |
 | `src/diagnostics.js` | network diagnostics requested from the page and run by the agents |
 | `src/i18n.js` | server-side translations, from the same dictionaries as the pages |
@@ -63,7 +67,7 @@ Everything lives in `data/` as JSON. There is no database: the amounts are small
 | `config.json` | installation settings |
 | `vault.json` | credentials and access key, DPAPI-encrypted |
 | `devices.json` | device registry: addresses, MAC, model, Wake-on-LAN state, notes |
-| `structure.json` | volumes and shares from the last QTS read, so the map still shows a NAS that is off |
+| `structure.json` | volumes and shares from the last read (QTS for a QNAP; `net view` for the others, as one volume with `smb: true`), so the map still shows a NAS that is off |
 | `machines.json` | registered machines: last drive snapshot, Credential Manager targets, name resolutions, agent version |
 | `profiles.json` | drive letter profiles |
 | `jobs.json` | jobs for the agents, with the snapshot to restore (last 300) |
@@ -83,6 +87,7 @@ Live status and metrics are kept **in memory** only. History belongs in a tool m
 2. A QNAP whose network is up but whose QTS is still starting answers `is_booting` on its login page: the status becomes *booting*.
 3. Every 15 minutes (or on **Refresh now**) the service logs in to each QNAP that is on with the metrics account and reads four QTS endpoints: system info, health, disks, volumes. The session is reused; if it expires, the service logs in again **once**.
 4. A rejected login suspends that credential on that NAS. A QNAP blocks an address after a few failed logins, so nothing retries until someone unlocks it on the page.
+5. For a generic device that had port 445 open when it was added, the service lists its shares with `net view` at the same pace, using the Windows credentials of the service user. A failed listing stops the automatic reads until **Refresh now**: other NAS units block addresses after failed logins too.
 
 ### Registering an agent
 

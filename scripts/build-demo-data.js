@@ -17,6 +17,8 @@ const write = (name, data) => {
 const ANCHOR = Date.parse("2026-06-15T10:00:00.000Z");
 const at = minutesAgo => new Date(ANCHOR - minutesAgo * 60000).toISOString();
 const TB = 1e12, GB = 1e9;
+// The sample PCs run the current agent (except the living room, left behind on purpose).
+const AGENT = (fs.readFileSync(path.join(__dirname, "..", "agent", "agent.ps1"), "utf8").match(/^\$Version = '([^']+)'/m) || [])[1] || "0.0.0";
 const B = "\\";
 const unc = (server, share, sub) => `${B}${B}${server}${B}${share}${sub ? B + sub : ""}`;
 
@@ -48,6 +50,12 @@ const devices = [
     notes: "Archive. Switched on once a week.",
   },
   {
+    // A NAS of another brand: a generic device, with its shares read via SMB.
+    id: "nas04", name: "nas04", type: "generic", addresses: ["192.168.10.24", "nas04"], mac: ["02:00:5E:10:00:24"],
+    model: "", firmware: "", wol: "untested", notes: "Another brand: no metrics, shares read via SMB.",
+    detected: { when: at(60 * 24 * 20), open_ports: [80, 443, 445, 5000], booting: false },
+  },
+  {
     id: "printer", name: "printer", type: "generic", addresses: ["192.168.10.30"], mac: [],
     model: "", firmware: "", wol: "untested", notes: "Office printer.",
     detected: { when: at(60 * 24 * 30), open_ports: [80, 443], booting: false },
@@ -58,7 +66,7 @@ write("devices.json", devices);
 // ---------------------------------------------------------------- credentials (no passwords: demo.js adds a dummy one)
 write("credentials.json", [
   { id: "anna", user: "anna", role: "office", devices: ["nas01", "nas02"], source: "" },
-  { id: "marco", user: "marco", role: "office", devices: ["nas01"], source: "" },
+  { id: "marco", user: "marco", role: "office", devices: ["nas01", "nas04"], source: "" },
   { id: "media", user: "media", role: "read-only, living room", devices: ["nas01", "nas03"], source: "" },
   { id: "monitor", user: "monitor", role: "metrics, read-only", devices: ["nas01", "nas02", "nas03"], source: "" },
 ]);
@@ -90,6 +98,14 @@ const structure = {
         share("Video-Archive", 11.2 * TB), share("Scans", 1.4 * TB), share("Old-PCs", 2.0 * TB)] },
     ],
   },
+  // A generic NAS: shares read via SMB, one "shared folders" node, no space information.
+  nas04: {
+    when: at(6), source: "smb",
+    volumes: [
+      { name: "", type: "", smb: true, total_bytes: null, free_bytes: null, shares: [
+        share("Laptop-Backup", null), share("Old-Scans", null), share("Software", null)] },
+    ],
+  },
 };
 write("structure.json", structure);
 
@@ -112,7 +128,7 @@ const machines = [
       drive("X", unc("192.168.10.22", "Nightly")),
     ] },
     windows_credentials: [{ target: "nas01", user: "anna" }, { target: "192.168.10.22", user: "anna" }],
-    public_key: publicKey(), agent_version: "0.6.0", last_contact: at(1), ip: "192.168.10.51",
+    public_key: publicKey(), agent_version: AGENT, last_contact: at(1), ip: "192.168.10.51",
     resolutions: { nas01: ["192.168.10.21"], nas02: ["192.168.10.22"], nas03: ["192.168.10.23"] },
   },
   {
@@ -121,12 +137,13 @@ const machines = [
     snapshot: { when: at(3), drives: [
       drive("M", unc("nas01", "Music")),
       drive("P", unc("nas01", "Projects")),
+      drive("B", unc("nas04", "Laptop-Backup")),
       drive("V", unc("nas01", "Films")),
       drive("Z", unc("nas01", "Public")),
     ] },
-    windows_credentials: [{ target: "nas01", user: "marco" }],
-    public_key: publicKey(), agent_version: "0.6.0", last_contact: at(1), ip: "192.168.10.52",
-    resolutions: { nas01: ["192.168.10.21"], nas02: ["127.0.0.1"], nas03: ["192.168.10.23"] },
+    windows_credentials: [{ target: "nas01", user: "marco" }, { target: "nas04", user: "marco" }],
+    public_key: publicKey(), agent_version: AGENT, last_contact: at(1), ip: "192.168.10.52",
+    resolutions: { nas01: ["192.168.10.21"], nas02: ["127.0.0.1"], nas03: ["192.168.10.23"], nas04: ["192.168.10.24"] },
   },
   {
     id: "livingroom-family", computer: "LIVINGROOM", user: "LIVINGROOM\\family", name: "Living room", managed: true,
@@ -249,6 +266,7 @@ write("status.json", {
       },
     },
     nas03: { status: "off", since: at(60 * 24 * 3), open_ports: [] },
+    nas04: { status: "on", since: at(60 * 24 * 9), open_ports: [80, 443, 445] },
     printer: { status: "on", since: at(60 * 5), open_ports: [80, 443] },
   },
 });

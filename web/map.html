@@ -682,7 +682,10 @@ function volumeBranch(v, off, devId) {
   const shares = filter(v.shares);
   return el("div", { class: "branch" },
     el("div", { class: `node volume-node${off ? " off" : ""}` },
-      el("div", null, el("span", { class: "ttl" }, v.name), el("span", { class: "sub" }, ` ${v.type}`)),
+      // A generic NAS has no volumes: its shares, read via SMB, hang from one "shared folders" node.
+      v.smb
+        ? [el("div", null, el("span", { class: "ttl" }, t("map.smbVolume"))), el("div", { class: "sub" }, t("map.smbVolumeNote"))]
+        : el("div", null, el("span", { class: "ttl" }, v.name), el("span", { class: "sub" }, ` ${v.type}`)),
       pct == null ? null : el("div", { class: "sub" }, t("map.volumeSpace", { pct, free: bytes(v.free_bytes, 0), total: bytes(v.total_bytes, 0) }) + (cls === "critical" ? " · ⚠ " + t("map.almostFull") : "")),
       pct == null ? null : el("div", { class: `gauge ${cls}`, role: "meter", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct, "aria-label": t("map.volumeUsed", { name: v.name, pct }) },
         el("span", { style: `width: ${pct}%` }))),
@@ -693,18 +696,22 @@ function nasBranch(n) {
   const off = n.status !== "on";
   const children = n.volumes.map(v => volumeBranch(v, off, n.id));
   const others = filter(n.others);
+  const qnap = n.type === "qnap";
   if (others.length) {
     children.push(el("div", { class: "branch" },
-      el("div", { class: "node volume-node off" }, el("span", { class: "ttl" }, t("map.volumeUnread")), el("div", { class: "sub" }, t("map.volumeUnreadNote"))),
+      el("div", { class: "node volume-node off" },
+        el("span", { class: "ttl" }, t(qnap ? "map.volumeUnread" : "map.sharesUnread")),
+        el("div", { class: "sub" }, t(qnap ? "map.volumeUnreadNote" : "map.sharesUnreadNote"))),
       el("div", { class: "branches" }, ...others.map(c => shareBranch(c, n.id)))));
   }
   return el("div", { class: "nas" },
     el("div", { class: `node nas-node${off ? " off" : ""}` },
       el("div", null, el("span", { class: `dot ${n.status}`, "aria-hidden": "true" }), el("span", { class: "ttl" }, n.name)),
-      el("div", { class: "sub" }, `${n.model || ""} · ${n.address}`),
+      el("div", { class: "sub" }, n.model ? `${n.model} · ${n.address}` : n.address),
       el("div", { class: "sub" }, t(`state.${n.status}`)),
-      n.structure_read ? el("div", { class: "sub" }, t("map.structureRead", { when: ago(n.structure_read) })) : el("div", { class: "sub" }, t("map.structureNever"))),
-    children.length ? el("div", { class: "branches" }, ...children) : el("div", { class: "letters muted" }, t("map.volumesNotRead")));
+      n.structure_read ? el("div", { class: "sub" }, t("map.structureRead", { when: ago(n.structure_read) }))
+        : el("div", { class: "sub" }, t(qnap ? "map.structureNever" : "map.sharesNever"))),
+    children.length ? el("div", { class: "branches" }, ...children) : el("div", { class: "letters muted" }, t(qnap ? "map.volumesNotRead" : "map.sharesNotRead")));
 }
 
 function draw() {

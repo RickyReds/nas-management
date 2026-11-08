@@ -101,5 +101,32 @@
         ]
       }
     ]
+  },
+  "nas04": {
+    "when": "2026-06-15T09:54:00.000Z",
+    "source": "smb",
+    "volumes": [
+      {
+        "name": "",
+        "type": "",
+        "smb": true,
+        "total_bytes": null,
+        "free_bytes": null,
+        "shares": [
+          {
+            "name": "Laptop-Backup",
+            "used_bytes": null
+          },
+          {
+            "name": "Old-Scans",
+            "used_bytes": null
+          },
+          {
+            "name": "Software",
+            "used_bytes": null
+          }
+        ]
+      }
+    ]
   }
 }

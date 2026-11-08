@@ -133,6 +133,7 @@ function card(d) {
       wakeLine,
       d.status !== "on" && d.wol === "no" ? el("p", { class: "muted", style: "margin: 0" }, t("status.noWol")) : null,
       d.metrics_error && d.status === "on" ? el("p", { class: "error", style: "margin: 0" }, t("status.metricsError", { error: msg(d.metrics_error) })) : null,
+      d.shares_error && d.status === "on" ? el("p", { class: "error", style: "margin: 0" }, t("status.sharesError", { error: msg(d.shares_error) })) : null,
       !fresh && d.type === "qnap" && d.status === "on" && !d.metrics_error ? el("p", { class: "muted", style: "margin: 0" }, t("status.metricsReading")) : null),
     part("numbers", ...(fresh ? [
       number("CPU", m.cpu == null ? "—" : `${fmtNumber(m.cpu)}%`),

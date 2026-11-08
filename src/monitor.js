@@ -1,7 +1,9 @@
 // Device status: TCP probe every minute for all devices (no login), QTS
 // metrics every 15 minutes for QNAPs that are on (NASM_METRICS_MINUTES to
 // change it), right away when one has just come up, and on request with
-// "Refresh now". Everything in memory: keep history elsewhere if you need it.
+// "Refresh now". Generic devices get their shares read via SMB at the same
+// pace (shareRead below). Everything in memory: keep history elsewhere if you
+// need it.
 const S = require("./store");
 const D = require("./devices");
 const Q = require("./qts");
@@ -89,11 +91,51 @@ async function metrics(d, force) {
   }
 }
 
+// Generic devices (any SMB server: Synology, TrueNAS, a Windows PC...): no
+// metrics, but their shares are read with "net view" and saved like a QNAP's
+// volumes, under a single "shared folders" node, so the map can show them.
+// - Automatically only for devices that answered on port 445 when added,
+//   every 15 minutes like the metrics.
+// - A failed read stops the automatic reads until "Refresh now": the server
+//   logs in with its own Windows credentials, and some NAS units (Synology
+//   among them) block an address after a few failed logins.
+async function shareRead(d, force) {
+  if (d.type === "qnap") return;
+  const s = state.get(d.id);
+  if (!s || s.status !== "on" || s.reading) return;
+  if (!force) {
+    const smb = d.detected && Array.isArray(d.detected.open_ports) && d.detected.open_ports.includes(445);
+    const lastTry = s.shares_tried ? Date.now() - Date.parse(s.shares_tried) : Infinity;
+    if (!smb || s.shares_stopped || lastTry < METRICS_EVERY - 15000) return;
+  }
+  if (!(await D.port(d.addresses[0], 445, 1500))) return;
+  s.reading = true;
+  s.shares_tried = new Date().toISOString();
+  try {
+    const names = (await require("./smb").shares(d)).filter(n => !n.endsWith("$"));
+    const everything = S.read("structure.json", {});
+    everything[d.id] = {
+      when: s.shares_tried, source: "smb",
+      volumes: [{ name: "", type: "", smb: true, total_bytes: null, free_bytes: null, shares: names.map(name => ({ name, used_bytes: null })) }],
+    };
+    S.save("structure.json", everything);
+    s.shares_error = null;
+    s.shares_stopped = false;
+  } catch (e) {
+    s.shares_error = e.code && e.params ? { code: e.code, params: e.params } : e.message;
+    if (!s.shares_stopped) log(`shares: reading ${d.name} failed, automatic reads stopped until "Refresh now": ${e.params ? e.params.error : e.message}`);
+    s.shares_stopped = true;
+  } finally {
+    s.reading = false;
+  }
+}
+
 async function round() {
   const ds = D.all();
   for (const id of state.keys()) if (!ds.some(d => d.id === id)) { state.delete(id); Q.forget(id); }
   await Promise.all(ds.map(d => probe(d).catch(e => log(`probe ${d.name}: ${e.message}`))));
   await Promise.all(ds.map(d => metrics(d, false)));
+  await Promise.all(ds.map(d => shareRead(d, false).catch(e => log(`shares ${d.name}: ${e.message}`))));
 }
 
 function start(logger) {
@@ -131,6 +173,7 @@ async function refreshNow(id) {
   }
   await probe(d);
   await metrics(d, true);
+  await shareRead(d, true);
   return list().find(x => x.id === id);
 }
 

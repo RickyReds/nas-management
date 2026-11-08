@@ -44,10 +44,10 @@
       }
     ],
     "public_key": {
-      "n": "ySMelDXFGBQcpcvJKb4lykKv3OZ0zELACnxYE260q386Iafac43gi57z4G/yywqdybTvkToEVD7t67AD/ji7hjvlpZstmYAYafopPywUuZ7LhKfLkfADtEW8Qf6wL7YB5ICxdNapZjwy8P9cTQ9cWWBHVRvmV3UbcsurYsbsgiky6kLLdWIMBXyw67yb9OYecaKWXx2eleHZSNbf7Jjy98PUrPXR81ED4LFYh7x/sbjZ1cZqWja9w3fDvLbPC4uxy9kj2vuKqkJYvsC7H6TIrhW6rA7BaxfS3u4GVFeuk5zkkKAVKIxoGBuGLf/gwraMZbd5HjzFS283Fx/8nuCBKQ==",
+      "n": "8wW7Pa8CW3oELtEvv+u3unMnFb+mX0/02QPy7EZugnTELqcGumvJy5o6Xpds+wdmzcYECL2ncerqW0rAq5IhbzJWMzgKLpvHTVS78KEbEo/HOb02riBwx4DxFgRCW09Jjzg0wJQg27a1e/GT+ZJEXfU4FsAXxmT2sIEMfSrU9v501N3w1mqva2Gp3Q1G7SxnDHRR5063OtVMyWWBFJ03RAst4JufmBLEd3x3Hfq3cRKzyOjO/dWdXu1WD/z/HbjiWQ9UAOrGqNTCDCyS1AwJEQEHtZ+JGc6oP7tPLhzB2LOTvybdXyy4ras78QKrGAvM8dhwd3JecAXhEcJM4nygxw==",
       "e": "AQAB"
     },
-    "agent_version": "0.6.0",
+    "agent_version": "0.6.1",
     "last_contact": "2026-06-15T09:59:00.000Z",
     "ip": "192.168.10.51",
     "resolutions": {
@@ -87,6 +87,11 @@
           "status": "connected"
         },
         {
+          "letter": "B",
+          "path": "\\\\nas04\\Laptop-Backup",
+          "status": "connected"
+        },
+        {
           "letter": "V",
           "path": "\\\\nas01\\Films",
           "status": "connected"
@@ -102,13 +107,17 @@
       {
         "target": "nas01",
         "user": "marco"
+      },
+      {
+        "target": "nas04",
+        "user": "marco"
       }
     ],
     "public_key": {
-      "n": "tgwmIMRIUeQUs6FTcBI4tRcNukfjMJVMNXentK5ZoOIggganPE7KTOe3SESK3W0z5cFAPt2bqzxH1nxBGK8XeDJu/LD3+sqC5Ihd0ILGQvfcaLqtYz+q47bDxsfy2jgkfzwnKzhQsX4titX0aks1/+xVxrg2RH1rpV/bdcb6nmI+R5vhaFlPQ3NNVWD48ufZG6zmnEK2unK5amTyRv2Ymd9NsO6urd9QMUEmOUa2bDxtu91J6Okw2zMygDVv4nn9uJX2kUksF/LvW7Pol3r0Bs3nSjRIXRG5nOXrPMc25ly4FL3DY2f0gDTsN+pYsJESrLlP1wRqqUKSw1saB1hSKw==",
+      "n": "jYa3keVdPep7ZigkkKLSKHARFgvExlZKD7Bymn4QRW44/n8j6eYHd01/GNW7M5aYv8CGoYs2QtdMmQshx5dB9aa8f8JYopECboN8TXnGZ34fnHxOwDUKof7TaxBfHPN/wzsuKsKA3DDnhxMo5OvdVnkitkMKW0LqAkr04HRhg8dYlNHHzWxzmYkutjFpDf5o+dK3TfzRtP9d99ekhGA1+c5AxH/jpU8Q/PDBL6bC+N9vZJepNpnBf9ezHzDmahvWNex1UnCMSnfuVgpBcJgVtwReqnI2uISiL7DcCktYjfYcDBDw6jUXNAP6uF7fgc6zCs8HNSgBSckBP6ZO2z1GOQ==",
       "e": "AQAB"
     },
-    "agent_version": "0.6.0",
+    "agent_version": "0.6.1",
     "last_contact": "2026-06-15T09:59:00.000Z",
     "ip": "192.168.10.52",
     "resolutions": {
@@ -120,6 +129,9 @@
       ],
       "nas03": [
         "192.168.10.23"
+      ],
+      "nas04": [
+        "192.168.10.24"
       ]
     }
   },
@@ -170,7 +182,7 @@
       }
     ],
     "public_key": {
-      "n": "ztCfBHP6JuxUYI497UbuHwEGoS9fj7eY8+JJmw6XE93tmrsrIsGJrhW30cPCQmvqBUV0x/KXh5hNJXXA+1XcI56BFeocJNcwk2t6W0KqVstRySQUL7zJhWjcE017fHLzCZHWAG6E5qUqfAVgAAL4i+q/1rBmb7uzDj9qQyNgvvF1xA9hA/ARORLNOMURfsuWb3ipPNgIsz2e1cu6sQr+yYmxOcvjyPz1Bh2Fb1fMu9Vxl1ZNyym44Em93Y/lAcd4qnCjlReY0FRYs0aevsex+1MpHOQ3tZn4/Skm9uobWUwFEIc9jED76FJhCo+LO9Zg1lWvNW4T4RF+MWXMIIw+mw==",
+      "n": "v3F8ZLInHz9IFPdiMUoeCUbgpy+orQU4ah3+159Yt9rruv8nmNmjiAyGORTyC85X9spYHVQQGIm6f+H5cwsGzufQLZZwsl7rTXkRAvi6NmGqc8ESlGaNKJ0Z2+GTKEXZolOLzS5m39zNMo/MD5RAidCQEf0YoukW3ZtuJYIA5xXgMNL0DQ4juIOHIYA43TwZhNrY5xxxVqeN/AxI/wqpyCBH1js+TrDhZ2pKOD7P/0e0XnktPGfRdFqRu8zLJpeolTOyc+f3SXClD7wq3lpgFj+/YjCFT0XnxtGLRoL8sU+DKxwWNC1sYqHznPOczngUdRgz+cWdmOFA/KSxuySVeQ==",
       "e": "AQAB"
     },
     "agent_version": "0.5.2",
