@@ -1,0 +1,11 @@
+{
+  "laptop-marco-marco": [
+    {
+      "id": "5f3a9c01",
+      "server": "nas02",
+      "requested": "2026-06-15T09:10:00.000Z",
+      "arrived": "2026-06-15T09:11:00.000Z",
+      "text": "Diagnostic of nas02 from LAPTOP-MARCO (LAPTOP-MARCO\\marco), agent 0.6.0\n\n== Name resolution\n  127.0.0.1   <-- loopback: the DNS server answers 127.0.0.1 for unknown names\n\n== Hosts file\n  (no lines)\n\n== Port 445\n  nas02: no answer\n  192.168.10.22: answers"
+    }
+  ]
+}

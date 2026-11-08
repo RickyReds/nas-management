@@ -1,0 +1,10 @@
+{
+  "port": 8790,
+  "host": "0.0.0.0",
+  "publicAddress": "http://192.168.1.50:8790",
+  "taskName": "NAS-Management",
+  "metricsUser": "monitor",
+  "protectedDriveLetters": {
+    "SERVER01": ["V"]
+  }
+}

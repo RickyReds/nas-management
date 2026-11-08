@@ -1,0 +1,273 @@
+{
+  "anchor": "2026-06-15T10:00:00.000Z",
+  "offline_machines": [
+    "livingroom-family"
+  ],
+  "devices": {
+    "nas01": {
+      "status": "on",
+      "since": "2026-06-03T10:00:00.000Z",
+      "open_ports": [
+        8080,
+        445
+      ],
+      "metrics": {
+        "when": "2026-06-15T09:56:00.000Z",
+        "account": "monitor",
+        "model": "TS-464",
+        "firmware": "QTS 5.2.1.2930 build 20250103",
+        "serial": "",
+        "cpu": 7,
+        "memory": {
+          "total_mb": 16384,
+          "free_mb": 10650
+        },
+        "temperatures": {
+          "system": 38,
+          "cpu": 46,
+          "system_threshold": 70
+        },
+        "uptime_s": 1055820,
+        "fans": [
+          {
+            "rpm": 1120,
+            "failed": false
+          }
+        ],
+        "network": [
+          {
+            "name": "Adapter 1",
+            "connected": true,
+            "speed": 2500,
+            "ip": "192.168.10.21",
+            "mac": "02:00:5E:10:00:21"
+          },
+          {
+            "name": "Adapter 2",
+            "connected": false,
+            "speed": null,
+            "ip": "",
+            "mac": "02:00:5E:10:01:21"
+          }
+        ],
+        "health": {
+          "status": "ok",
+          "events": []
+        },
+        "disks": [
+          {
+            "slot": "0:1",
+            "name": null,
+            "number": "1",
+            "model": "WD Red Plus",
+            "health": "Good",
+            "temperature": 36,
+            "temperature_threshold": 60,
+            "capacity": "8.00 TB",
+            "serial": ""
+          },
+          {
+            "slot": "0:2",
+            "name": null,
+            "number": "2",
+            "model": "WD Red Plus",
+            "health": "Good",
+            "temperature": 37,
+            "temperature_threshold": 60,
+            "capacity": "8.00 TB",
+            "serial": ""
+          },
+          {
+            "slot": "0:3",
+            "name": null,
+            "number": "3",
+            "model": "WD Red Plus",
+            "health": "Good",
+            "temperature": 37,
+            "temperature_threshold": 60,
+            "capacity": "8.00 TB",
+            "serial": ""
+          },
+          {
+            "slot": "0:4",
+            "name": null,
+            "number": "4",
+            "model": "WD Red Plus",
+            "health": "Good",
+            "temperature": 36,
+            "temperature_threshold": 60,
+            "capacity": "8.00 TB",
+            "serial": ""
+          }
+        ],
+        "volumes": [
+          {
+            "name": "DataVol1",
+            "type": "Ready",
+            "total_bytes": 21400000000000,
+            "free_bytes": 7900000000000,
+            "shares": [
+              {
+                "name": "Documents",
+                "used_bytes": 410000000000
+              },
+              {
+                "name": "Photos",
+                "used_bytes": 2600000000000
+              },
+              {
+                "name": "Music",
+                "used_bytes": 380000000000
+              },
+              {
+                "name": "Projects",
+                "used_bytes": 1900000000000
+              },
+              {
+                "name": "Public",
+                "used_bytes": 95000000000
+              },
+              {
+                "name": "PC-Backup",
+                "used_bytes": 6100000000000
+              }
+            ],
+            "free_gb": 7900
+          },
+          {
+            "name": "MediaSSD",
+            "type": "Ready",
+            "total_bytes": 3600000000000,
+            "free_bytes": 1100000000000,
+            "shares": [
+              {
+                "name": "Films",
+                "used_bytes": 1700000000000
+              },
+              {
+                "name": "Series",
+                "used_bytes": 640000000000
+              },
+              {
+                "name": "Kids",
+                "used_bytes": 180000000000
+              }
+            ],
+            "free_gb": 1100
+          }
+        ]
+      }
+    },
+    "nas02": {
+      "status": "on",
+      "since": "2026-06-11T10:00:00.000Z",
+      "open_ports": [
+        8080,
+        445
+      ],
+      "metrics": {
+        "when": "2026-06-15T09:56:00.000Z",
+        "account": "monitor",
+        "model": "TS-233",
+        "firmware": "QTS 5.1.8.2823 build 20240712",
+        "serial": "",
+        "cpu": 18,
+        "memory": {
+          "total_mb": 2048,
+          "free_mb": 610
+        },
+        "temperatures": {
+          "system": 44,
+          "cpu": 52,
+          "system_threshold": 70
+        },
+        "uptime_s": 352800,
+        "fans": [
+          {
+            "rpm": 860,
+            "failed": false
+          }
+        ],
+        "network": [
+          {
+            "name": "Adapter 1",
+            "connected": true,
+            "speed": 1000,
+            "ip": "192.168.10.22",
+            "mac": "02:00:5E:10:00:22"
+          }
+        ],
+        "health": {
+          "status": "warning",
+          "events": [
+            {
+              "type": "warning",
+              "code": "VOL_USAGE",
+              "on": {
+                "kind": "volume",
+                "name": "Backup",
+                "status": "ready"
+              }
+            }
+          ]
+        },
+        "disks": [
+          {
+            "slot": "0:1",
+            "name": null,
+            "number": "1",
+            "model": "Seagate IronWolf",
+            "health": "Good",
+            "temperature": 41,
+            "temperature_threshold": 60,
+            "capacity": "8.00 TB",
+            "serial": ""
+          },
+          {
+            "slot": "0:2",
+            "name": null,
+            "number": "2",
+            "model": "Seagate IronWolf",
+            "health": "Good",
+            "temperature": 43,
+            "temperature_threshold": 60,
+            "capacity": "8.00 TB",
+            "serial": ""
+          }
+        ],
+        "volumes": [
+          {
+            "name": "Backup",
+            "type": "Ready",
+            "total_bytes": 7200000000000,
+            "free_bytes": 850000000000,
+            "shares": [
+              {
+                "name": "Nightly",
+                "used_bytes": 5400000000000
+              },
+              {
+                "name": "Archive",
+                "used_bytes": 900000000000
+              }
+            ],
+            "free_gb": 850
+          }
+        ]
+      }
+    },
+    "nas03": {
+      "status": "off",
+      "since": "2026-06-12T10:00:00.000Z",
+      "open_ports": []
+    },
+    "printer": {
+      "status": "on",
+      "since": "2026-06-15T05:00:00.000Z",
+      "open_ports": [
+        80,
+        443
+      ]
+    }
+  }
+}

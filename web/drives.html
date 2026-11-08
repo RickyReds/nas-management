@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang = "en">
+<head>
+<meta charset = "utf-8">
+<meta name = "viewport" content = "width=device-width, initial-scale=1">
+<title data-i18n = "title.drives">Network drives — NAS-Management</title>
+<meta name = "description" data-i18n-content = "meta.description" content = "Network drives, NAS status and credentials for a small Windows network.">
+<link rel = "icon" href = "icon.svg">
+<script src = "theme.js"></script>
+<link rel = "stylesheet" href = "style.css">
+<style>
+  button.folder { width: 100%; text-align: left; border-color: transparent; background: transparent; }
+  button.folder:hover { background: var(--row); }
+  ol.steps { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding-left: 20px; }
+  ol.steps li { color: var(--muted); }
+  ol.steps li.active { color: inherit; font-weight: 600; }
+  .diag-text { white-space: pre-wrap; font: 12px/1.45 ui-monospace, Consolas, monospace; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; max-height: 50vh; overflow: auto; margin: 6px 0 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NAS-Management</h1>
+  <nav>
+    <a href = "/status.html" data-i18n = "nav.status">Status</a>
+    <a href = "/map.html" data-i18n = "nav.map">Map</a>
+    <a href = "/" data-i18n = "nav.devices">Devices</a>
+    <a href = "/drives.html" aria-current = "page" data-i18n = "nav.drives">Network drives</a>
+    <a href = "/settings.html" data-i18n = "nav.settings">Settings</a>
+  </nav>
+  <button type = "button" onclick = "logout()" data-i18n = "common.logout">Log out</button>
+</header>
+
+<main aria-busy = "true">
+  <p id = "message" role = "status" aria-live = "polite"></p>
+
+  <section class = "collapsible" data-panel = "machines">
+    <h2><button type = "button" class = "toggle" aria-expanded = "true" data-i18n = "drives.machines">Machines</button></h2>
+    <div class = "panel-body">
+    <p><button id = "register" type = "button" class = "primary" data-i18n = "drives.register">Register a machine</button></p>
+    <div id = "code-box" class = "card" hidden>
+      <p><strong data-i18n = "drives.onThisPc">On this PC:</strong> <span data-i18n = "drives.installHint">download the installer and open it with a double click, as the Windows user whose drives you want to manage. You do not need to be an administrator; actually, do not use "Run as administrator".</span></p>
+      <p class = "row"><a id = "download" class = "button-link primary" href = "#" download data-i18n = "drives.download">Download the installer</a></p>
+      <p class = "muted" data-i18n = "drives.downloadWarning">The browser may warn that the file is not safe or not commonly downloaded: choose "Keep". Windows may show "Windows protected your PC": "More info", then "Run anyway". This happens because the file is not signed and comes over http.</p>
+      <p class = "muted" id = "expiry"></p>
+      <details>
+        <summary class = "muted" data-i18n = "drives.commandAlt">Alternatively, the command to paste in PowerShell (normal, not administrator)</summary>
+        <textarea id = "command" class = "command" readonly></textarea>
+      </details>
+    </div>
+    <div class = "scroll">
+      <table>
+        <thead><tr>
+          <th data-i18n = "drives.colComputer">Computer</th><th data-i18n = "drives.colUser">User</th><th data-i18n = "drives.colAgent">Agent</th>
+          <th data-i18n = "drives.colDrives">Drives</th><th data-i18n = "drives.colManaged">Managed</th><th data-i18n = "drives.colProtected">Protected letters</th><th><span class = "sr-only" data-i18n = "common.actions">Actions</span></th>
+        </tr></thead>
+        <tbody id = "tab-machines"></tbody>
+      </table>
+    </div>
+    <p class = "muted" data-i18n = "drives.agentNote">Drives stay mounted even when the agent is stopped: the agent is only needed to receive changes and report the state.</p>
+    </div>
+  </section>
+
+  <section class = "collapsible" data-panel = "profiles">
+    <h2><button type = "button" class = "toggle" aria-expanded = "true" data-i18n = "drives.profiles">Profiles</button></h2>
+    <div class = "panel-body">
+    <p><button id = "new-profile" type = "button" class = "primary" data-i18n = "drives.newProfile">New profile</button></p>
+    <div class = "scroll">
+      <table>
+        <thead><tr><th data-i18n = "drives.colName">Name</th><th data-i18n = "drives.colDrives">Drives</th><th data-i18n = "drives.colUpdated">Updated</th><th><span class = "sr-only" data-i18n = "common.actions">Actions</span></th></tr></thead>
+        <tbody id = "tab-profiles"></tbody>
+      </table>
+    </div>
+    </div>
+  </section>
+
+  <section id = "sec-apply" hidden>
+    <h2 id = "apply-title" data-i18n = "common.apply">Apply</h2>
+    <div class = "row">
+      <label class = "inline"><input type = "radio" name = "mode" value = "add" checked> <span data-i18n = "drives.modeAdd">Add: the other letters stay</span></label>
+      <label class = "inline"><input type = "radio" name = "mode" value = "align"> <span data-i18n = "drives.modeAlign">Align: also removes the letters outside the profile</span></label>
+    </div>
+    <fieldset>
+      <legend class = "muted" data-i18n = "drives.machines">Machines</legend>
+      <div class = "choices" id = "machine-choices"></div>
+    </fieldset>
+    <p class = "row">
+      <button id = "btn-preview" type = "button" class = "primary" data-i18n = "drives.preview">Preview</button>
+      <button type = "button" onclick = "$('#sec-apply').hidden = true" data-i18n = "common.close">Close</button>
+    </p>
+    <div id = "preview-result"></div>
+    <p class = "row" id = "confirm-row" hidden>
+      <button id = "btn-apply" type = "button" class = "primary" data-i18n = "common.apply">Apply</button>
+      <span class = "muted" data-i18n = "drives.applyNote">Letters ticked as "taken by something else" or "to remove" will be changed. The snapshot is saved first, for restoring.</span>
+    </p>
+  </section>
+
+  <section class = "collapsible" data-panel = "jobs">
+    <h2><button type = "button" class = "toggle" aria-expanded = "true" data-i18n = "drives.jobs">Jobs</button></h2>
+    <div class = "panel-body">
+    <div class = "scroll">
+      <table>
+        <thead><tr>
+          <th data-i18n = "drives.colCreated">Created</th><th data-i18n = "drives.colMachine">Machine</th><th data-i18n = "drives.colWhat">What</th>
+          <th data-i18n = "drives.colStatus">Status</th><th data-i18n = "drives.colOperations">Operations</th><th><span class = "sr-only" data-i18n = "common.actions">Actions</span></th>
+        </tr></thead>
+        <tbody id = "tab-jobs"></tbody>
+      </table>
+    </div>
+    </div>
+  </section>
+
+  <section id = "sec-suspensions" hidden>
+    <h2 class = "error" data-i18n = "drives.suspended">Suspended credentials</h2>
+    <p class = "muted" data-i18n = "drives.suspendedNote">A NAS rejected the credential: no agent will try it again until you unlock it. Check the password in "Devices" first, otherwise QNAP blocks the address.</p>
+    <div class = "scroll">
+      <table>
+        <thead><tr>
+          <th data-i18n = "drives.colCredential">Credential</th><th data-i18n = "drives.colDevice">Device</th><th data-i18n = "drives.colMachine">Machine</th>
+          <th data-i18n = "drives.colWhen">When</th><th data-i18n = "drives.colMessage">Message</th><th><span class = "sr-only" data-i18n = "common.actions">Actions</span></th>
+        </tr></thead>
+        <tbody id = "tab-suspensions"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<dialog id = "dlg-drives" class = "wide">
+  <form method = "dialog">
+    <h2 id = "drives-title" data-i18n = "drives.colDrives">Drives</h2>
+    <div class = "scroll"><table>
+      <thead><tr><th data-i18n = "drives.colLetter">Letter</th><th data-i18n = "drives.colPath">Path</th><th data-i18n = "drives.colStatus">Status</th></tr></thead>
+      <tbody id = "tab-drives"></tbody>
+    </table></div>
+    <h3 data-i18n = "drives.windowsCredentials">Windows Credential Manager (network entries only, without passwords)</h3>
+    <p id = "windows-credentials" class = "muted"></p>
+    <div class = "buttons"><button type = "button" data-close data-i18n = "common.close">Close</button></div>
+  </form>
+</dialog>
+
+<dialog id = "dlg-machine">
+  <form method = "dialog" id = "form-machine">
+    <h2 id = "machine-title" data-i18n = "drives.settings">Settings</h2>
+    <label><span data-i18n = "drives.displayName">Display name</span> <input name = "name" maxlength = "40" data-i18n-placeholder = "drives.displayNamePlaceholder" placeholder = "leave empty for the Windows name"></label>
+    <p class = "muted" id = "windows-name"></p>
+    <label><span data-i18n = "drives.protectedLabel">Protected letters, comma separated</span> <input name = "protected" placeholder = "V, Z"></label>
+    <p class = "muted" data-i18n = "drives.protectedNote">A protected letter is changed or removed only when ticked on purpose in the preview.</p>
+    <fieldset>
+      <legend class = "muted" data-i18n = "drives.preferredLegend">Address to use for each NAS on this machine</legend>
+      <div id = "preferred" style = "display: grid; gap: 8px;"></div>
+    </fieldset>
+    <div class = "buttons">
+      <button type = "button" data-close data-i18n = "common.cancel">Cancel</button>
+      <button class = "primary" type = "submit" data-i18n = "common.save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id = "dlg-profile" class = "wide">
+  <form method = "dialog" id = "form-profile">
+    <h2 id = "profile-title" data-i18n = "drives.profile">Profile</h2>
+    <label><span data-i18n = "drives.colName">Name</span> <input name = "name" required></label>
+    <div class = "scroll"><table>
+      <thead><tr>
+        <th data-i18n = "drives.colLetter">Letter</th><th>NAS</th><th data-i18n = "drives.colShare">Share</th><th data-i18n = "drives.colSubfolder">Subfolder</th>
+        <th data-i18n = "drives.colCredential">Credential</th><th data-i18n = "drives.colWriteTest">Write test</th><th><span class = "sr-only" data-i18n = "common.actions">Actions</span></th>
+      </tr></thead>
+      <tbody id = "tab-entries"></tbody>
+    </table></div>
+    <p><button id = "add-entry" type = "button" data-i18n = "drives.addDrive">Add drive</button></p>
+    <p class = "muted" data-i18n = "drives.profileNote">Shares and folders are picked among those that exist on the NAS. Empty subfolder: the letter opens the whole share. Credential "from the Credential Manager": the one Windows already has on that machine is used. On the same NAS a profile can use only one credential (error 1219).</p>
+    <div class = "buttons">
+      <button type = "button" data-close data-i18n = "common.cancel">Cancel</button>
+      <button class = "primary" type = "submit" data-i18n = "common.save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id = "dlg-wizard" class = "wide">
+  <form method = "dialog" id = "form-wizard">
+    <h2 id = "wz-title" data-i18n = "drives.applyChoice">Apply by choice</h2>
+    <ol class = "steps" id = "wz-steps">
+      <li data-i18n = "drives.machines">Machines</li><li data-i18n = "wizard.stepRemove">To remove</li><li data-i18n = "wizard.stepMount">To mount</li><li data-i18n = "wizard.stepSummary">Summary</li>
+    </ol>
+    <div id = "wz-body"></div>
+    <p id = "wz-error" class = "error" role = "alert" style = "margin: 0;"></p>
+    <div class = "buttons">
+      <button type = "button" data-close data-i18n = "common.cancel">Cancel</button>
+      <button type = "button" id = "wz-back" data-i18n = "wizard.back">Back</button>
+      <button type = "button" id = "wz-next" class = "primary" data-i18n = "wizard.next">Next</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id = "dlg-browse">
+  <form method = "dialog">
+    <h2 data-i18n = "browse.title">Choose the folder</h2>
+    <p id = "br-path" style = "margin: 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;"></p>
+    <ul id = "br-list" style = "list-style: none; margin: 0; padding: 0; max-height: 50vh; overflow-y: auto; display: grid; gap: 2px;"></ul>
+    <p id = "br-error" class = "error" style = "margin: 0;"></p>
+    <div class = "buttons">
+      <button type = "button" data-close data-i18n = "common.cancel">Cancel</button>
+      <button type = "button" id = "br-root" data-i18n = "browse.useRoot">Use the root</button>
+      <button type = "button" id = "br-use" class = "primary" data-i18n = "browse.useThis">Use this folder</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id = "dlg-diag" class = "wide">
+  <form method = "dialog" id = "form-diag">
+    <h2 id = "diag-title" data-i18n = "diag.title">Network diagnostics</h2>
+    <p class = "muted" style = "margin: 0;" data-i18n = "diag.intro">This PC's agent checks how it reaches the chosen server: name resolution, hosts file, DNS cache, port 445, names in the Credential Manager, drives and SMB sessions. Read-only: it changes nothing. The result arrives within a minute, if the agent is online.</p>
+    <div class = "row">
+      <label><span data-i18n = "diag.server">Server to check</span> <select name = "server" id = "diag-server" required></select></label>
+      <button type = "submit" class = "primary" data-i18n = "diag.start">Start</button>
+    </div>
+    <p id = "diag-status" class = "muted" style = "margin: 0;"></p>
+    <div id = "diag-results"></div>
+    <div class = "buttons"><button type = "button" data-close data-i18n = "common.close">Close</button></div>
+  </form>
+</dialog>
+
+<script src = "common.js"></script>
+<script>
+let machines = [], profiles = [], devices = [], credentials = [], jobs = [], suspensions = [];
+let editingProfile = null, editingMachine = null, profileToApply = null, lastPreview = null;
+const shareCache = {};
+const LETTERS = "DEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const devName = id => (devices.find(d => d.id === id) || { name: id || "—" }).name;
+const machineLabel = m => `${m.computer} · ${m.user}`;
+const machineName = id => { const m = machines.find(x => x.id === id); return m ? `${m.computer} · ${m.user.split("\\").pop()}` : (id === "server" ? t("drives.serverMetrics") : id); };
+
+async function reload() {
+  [machines, profiles, devices, credentials, jobs, suspensions] = await Promise.all(
+    ["/api/machines", "/api/profiles", "/api/devices", "/api/credentials", "/api/jobs", "/api/suspensions"].map(u => call("GET", u)));
+  drawMachines(); drawProfiles(); drawJobs(); drawSuspensions();
+}
+
+// ----------------------------------------------------------- diagnostics
+// Network diagnostic run by the machine's agent.
+let diagMachine = null, diagRunning = null;
+// Alarm lines (⚠, or a name pointing to 127.x) in red, in both agent languages.
+const DIAG_ALARM = /⚠|\b127\.\d+\.\d+\.\d+\b|NOT answering|NON risponde|not resolved|non risolto/;
+
+async function loadDiag() {
+  const s = await call("GET", `/api/machines/${diagMachine.id}/diagnostics`);
+  $("#diag-results").replaceChildren(...s.results.map((r, i) => el("details", { open: i === 0 },
+    el("summary", null, `${r.server} · ${fmtDateTime(r.arrived, true)}`),
+    el("div", { class: "diag-text" }, ...r.text.split("\n").map(line =>
+      el("div", { class: DIAG_ALARM.test(line) ? "error" : null, style: /⚠/.test(line) ? "font-weight: 700" : null }, line || " "))))));
+  return s;
+}
+
+async function openDiag(m) {
+  diagMachine = m;
+  $("#diag-title").textContent = t("diag.titleFor", { machine: machineLabel(m) });
+  // Only the addresses of registered devices, grouped by device.
+  const sel = $("#diag-server");
+  const previous = sel.value;
+  sel.replaceChildren(...devices.map(d => el("optgroup", { label: d.name },
+    ...d.addresses.map(a => el("option", { value: a, selected: a === previous }, `${a} (${isIp(a) ? "IP" : t("map.formName")})`)))));
+  if (!sel.value && sel.options.length) sel.selectedIndex = 0;
+  $("#diag-status").textContent = isOnline(m.last_contact) ? "" : "⚠ " + t("diag.agentStopped");
+  $("#dlg-diag").showModal();
+  try { await loadDiag(); } catch (e) { $("#diag-status").textContent = e.message; }
+}
+
+$("#form-diag").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const server = ev.target.elements.server.value.trim();
+  try {
+    const r = await call("POST", `/api/machines/${diagMachine.id}/diagnostics`, { server });
+    diagRunning = r.id;
+    const start = Date.now();
+    while (diagRunning === r.id && $("#dlg-diag").open && Date.now() - start < 3 * 60 * 1000) {
+      $("#diag-status").textContent = t("diag.waiting", { s: Math.round((Date.now() - start) / 1000) });
+      await new Promise(ok => setTimeout(ok, 3000));
+      const s = await loadDiag();
+      if (s.results.some(x => x.id === r.id)) { $("#diag-status").textContent = t("diag.arrived"); diagRunning = null; return; }
+    }
+    if (diagRunning === r.id) $("#diag-status").textContent = t("diag.noAnswer");
+  } catch (e) { $("#diag-status").textContent = e.message; }
+});
+
+// -------------------------------------------------------------- machines
+
+// Agent version: from 0.4.0 it updates itself, before that it had to be reinstalled once.
+const compareVersions = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0); } return 0; };
+function agentVersion(m) {
+  if (!m.agent_version) return null;
+  const old = m.current_agent && compareVersions(m.agent_version, m.current_agent) < 0;
+  const selfUpdating = compareVersions(m.agent_version, "0.4.0") >= 0;
+  return el("div", { class: old ? (selfUpdating ? "warn" : "error") : "muted" },
+    t("map.agentVersion", { version: m.agent_version }),
+    old ? " → " + t(selfUpdating ? "drives.agentUpdatesItself" : "drives.agentReinstall", { version: m.current_agent }) : "");
+}
+
+function drawMachines() {
+  if (!machines.length) {
+    $("#tab-machines").replaceChildren(el("tr", null, el("td", { colspan: 7, class: "muted" }, t("drives.noMachines"))));
+    return;
+  }
+  $("#tab-machines").replaceChildren(...machines.map(m => {
+    const n = m.snapshot ? m.snapshot.drives.length : 0;
+    const online = isOnline(m.last_contact);
+    return el("tr", null,
+      el("td", null, el("strong", null, m.computer),
+        m.windows_computer && m.windows_computer !== m.computer ? el("div", { class: "muted" }, m.windows_computer) : null),
+      el("td", null, m.user),
+      el("td", { class: online ? "ok" : "error" }, online ? t("drives.online") : el("strong", null, "⚠ " + t("drives.stoppedSince", { when: ago(m.last_contact) })),
+        agentVersion(m)),
+      el("td", null, m.snapshot ? el("button", { type: "button", class: "small", onclick: () => openDrives(m) }, t("drives.nDrives", { n })) : el("span", { class: "muted" }, t("drives.noSnapshot"))),
+      el("td", null, el("label", { class: "inline" },
+        el("input", { type: "checkbox", checked: m.managed, onchange: ev => setManaged(m, ev.target.checked) }), m.managed ? t("common.yes") : t("common.no"))),
+      el("td", null, m.protected_letters.join(", ") || "—"),
+      el("td", { class: "actions" },
+        el("button", { type: "button", onclick: () => openMachine(m) }, t("drives.settings")), " ",
+        el("button", { type: "button", onclick: () => openDiag(m), title: t("drives.diagTitle") }, t("diag.title")), " ",
+        el("button", { type: "button", onclick: () => profileFromSnapshot(m), disabled: !m.snapshot }, t("drives.profileFromHere")), " ",
+        el("button", { type: "button", class: "danger", onclick: () => removeMachine(m) }, t("common.remove"))),
+    );
+  }));
+}
+
+const driveStatus = s => t(s === "connected" ? "drives.connected" : "drives.disconnected");
+
+function openDrives(m) {
+  $("#drives-title").textContent = t("drives.drivesOf", { machine: machineLabel(m), when: ago(m.snapshot.when) });
+  $("#tab-drives").replaceChildren(...m.snapshot.drives.map(u => el("tr", null,
+    el("td", null, `${u.letter}:`), el("td", null, u.path),
+    el("td", { class: u.status === "connected" ? "ok" : "warn" }, driveStatus(u.status)))));
+  $("#windows-credentials").textContent = (m.windows_credentials || []).map(c => `${c.target} → ${c.user}`).join(" · ") || t("common.none");
+  $("#dlg-drives").showModal();
+}
+
+async function setManaged(m, value) {
+  try { await call("PATCH", `/api/machines/${m.id}`, { managed: value }); message(t(value ? "drives.nowManaged" : "drives.nowUnmanaged", { machine: machineLabel(m) }), "ok"); }
+  catch (e) { message(e.message, "error"); }
+  await reload();
+}
+
+function openMachine(m) {
+  editingMachine = m.id;
+  $("#machine-title").textContent = t("drives.settingsOf", { machine: machineLabel(m) });
+  $("#form-machine").elements.protected.value = m.protected_letters.join(", ");
+  $("#form-machine").elements.name.value = m.name || "";
+  $("#windows-name").textContent = t("drives.windowsName", { name: m.windows_computer || m.computer });
+  $("#preferred").replaceChildren(...devices.map(d => el("label", null, d.name,
+    el("select", { name: `pref-${d.id}`, "data-dev": d.id },
+      el("option", { value: "" }, t("drives.defaultAddress", { address: d.addresses[0] })),
+      ...d.addresses.map(a => el("option", { value: a, selected: (m.preferred_addresses || {})[d.id] === a }, a))))));
+  $("#dlg-machine").showModal();
+}
+
+$("#form-machine").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const pref = {};
+  for (const s of document.querySelectorAll("#preferred select")) if (s.value) pref[s.dataset.dev] = s.value;
+  try {
+    await call("PATCH", `/api/machines/${editingMachine}`, {
+      name: ev.target.elements.name.value,
+      protected_letters: ev.target.elements.protected.value.split(",").map(s => s.trim()).filter(Boolean),
+      preferred_addresses: pref,
+    });
+    $("#dlg-machine").close();
+    message(t("drives.settingsSaved"), "ok");
+    await reload();
+  } catch (e) { message(e.message, "error"); }
+});
+
+async function profileFromSnapshot(m) {
+  const name = prompt(t("drives.newProfileName"), t("drives.likeMachine", { machine: m.computer }));
+  if (!name) return;
+  try {
+    const r = await call("POST", "/api/profiles/from-snapshot", { machine: m.id, name });
+    message(t("drives.profileCreated", { name: r.profile.name, n: r.profile.entries.length }) + (r.skipped.length ? " " + t("drives.skippedNotRegistered", { list: r.skipped.join("; ") }) : ""), "ok");
+    await reload();
+  } catch (e) { message(e.message, "error"); }
+}
+
+async function removeMachine(m) {
+  if (!confirm(t("drives.confirmRemoveMachine", { machine: machineLabel(m) }))) return;
+  try { await call("DELETE", `/api/machines/${m.id}`); message(t("drives.machineRemoved"), "ok"); await reload(); }
+  catch (e) { message(e.message, "error"); }
+}
+
+$("#register").addEventListener("click", async () => {
+  try {
+    const r = await call("POST", "/api/machines/code");
+    const server = r.server;
+    $("#command").value = `iwr -UseBasicParsing ${server}/agent/install-agent.ps1 -OutFile $env:TEMP\\install-agent.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\\install-agent.ps1 -Server ${server} -Code ${r.code} -Language ${LANG}`;
+    $("#download").href = `/api/machines/installer.cmd?code=${encodeURIComponent(r.code)}&lang=${LANG}`;
+    $("#download").dataset.ready = "1";
+    $("#expiry").textContent = t("drives.codeExpiry", { code: r.code, time: fmtTime(r.expires) });
+    $("#code-box").hidden = false;
+    $("#download").focus();
+  } catch (e) { message(e.message, "error"); }
+});
+
+// The installer is downloaded through fetch: a refusal from the server
+// (expired code) shows up in the page instead of vanishing, and the file
+// arrives as a real download. Chrome may still hold back a .cmd downloaded
+// over http: in that case keep it from the downloads bar.
+$("#download").addEventListener("click", async ev => {
+  ev.preventDefault();
+  const a = ev.currentTarget;
+  if (!a.dataset.ready) { message(t("drives.pressRegisterFirst"), "warn"); return; }
+  try {
+    const r = await fetch(a.href);
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      message(t("drives.downloadFailedCode", { error: j.code ? msg(j) : t("common.httpError", { status: r.status }) }), "error");
+      return;
+    }
+    const url = URL.createObjectURL(await r.blob());
+    const tmp = el("a", { href: url, download: `${t("installer.fileName")}.cmd`, style: "display: none" });
+    document.body.append(tmp);
+    tmp.click();
+    tmp.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    message(t("drives.downloadStarted"), "ok");
+  } catch (e) { message(t("drives.downloadFailed", { error: e.message }), "error"); }
+});
+
+// -------------------------------------------------------------- profiles
+
+const entryText = v => `${v.letter}: ${devName(v.device)}\\${v.share}${v.subfolder ? "\\" + v.subfolder : ""}`;
+
+function drawProfiles() {
+  if (!profiles.length) {
+    $("#tab-profiles").replaceChildren(el("tr", null, el("td", { colspan: 4, class: "muted" }, t("drives.noProfiles"))));
+    return;
+  }
+  $("#tab-profiles").replaceChildren(...profiles.map(p => el("tr", null,
+    el("td", null, el("strong", null, p.name)),
+    el("td", null, p.entries.map(entryText).join(" · ") || "—"),
+    el("td", { class: "muted" }, ago(p.updated)),
+    el("td", { class: "actions" },
+      el("button", { type: "button", class: "primary", onclick: () => openApply(p) }, t("common.apply")), " ",
+      el("button", { type: "button", onclick: () => openWizard(p) }, t("drives.applyChoiceDots")), " ",
+      el("button", { type: "button", onclick: () => openProfile(p) }, t("common.edit")), " ",
+      el("button", { type: "button", class: "danger", onclick: () => removeProfile(p) }, t("common.delete"))),
+  )));
+}
+
+// List of shares read from the NAS, once per page; if the NAS is off the
+// error is only remembered for this opening.
+async function readShares(devId) {
+  if (!shareCache[devId]) {
+    shareCache[devId] = call("GET", `/api/devices/${devId}/shares`)
+      .then(names => ({ names, error: null }))
+      .catch(e => { delete shareCache[devId]; return { names: [], error: e.message }; });
+  }
+  return shareCache[devId];
+}
+
+// The share is only picked among those the NAS declares. A saved value the
+// NAS does not list (NAS off) stays, flagged.
+async function fillShares(sel, devId, current, note) {
+  sel.replaceChildren(el("option", { value: "" }, t("common.reading")));
+  sel.disabled = true;
+  const { names, error } = await readShares(devId);
+  const options = [el("option", { value: "" }, t("drives.choose")), ...names.map(n => el("option", { value: n, selected: n === current }, n))];
+  if (current && !names.includes(current)) options.push(el("option", { value: current, selected: true }, t("drives.unverified", { share: current })));
+  sel.replaceChildren(...options);
+  sel.disabled = false;
+  note.textContent = error ? t("drives.listUnavailable", { error }) : "";
+}
+
+function entryRow(v) {
+  const selDev = el("select", { name: "device", required: true },
+    ...devices.map(d => el("option", { value: d.id, selected: d.id === v.device }, d.name)));
+  const selCred = el("select", { name: "credential" });
+  const selShare = el("select", { name: "share", required: true });
+  const shareNote = el("div", { class: "muted" });
+  const subField = el("input", { name: "subfolder", value: v.subfolder || "", readonly: true, placeholder: t("drives.shareRoot"), size: 22 });
+  const updateCred = () => {
+    const current = selCred.value || v.credential || "";
+    selCred.replaceChildren(el("option", { value: "" }, t("drives.fromManager")),
+      ...credentials.filter(c => c.devices.includes(selDev.value)).map(c => el("option", { value: c.id, selected: c.id === current }, c.user)));
+  };
+  selDev.addEventListener("change", () => { updateCred(); subField.value = ""; fillShares(selShare, selDev.value, "", shareNote); });
+  selShare.addEventListener("change", () => { subField.value = ""; });
+  updateCred();
+  fillShares(selShare, selDev.value, v.share || "", shareNote);
+  const browse = () => {
+    if (!selShare.value) { message(t("drives.chooseShareFirst"), "warn"); return; }
+    openBrowse(selDev.value, selShare.value, subField);
+  };
+  const tr = el("tr", null,
+    el("td", null, el("select", { name: "letter" }, ...LETTERS.map(l => el("option", { value: l, selected: l === v.letter }, `${l}:`)))),
+    el("td", null, selDev),
+    el("td", null, selShare, shareNote),
+    el("td", null, el("div", { style: "display: flex; gap: 4px;" }, subField,
+      el("button", { type: "button", class: "small", onclick: browse }, t("drives.browse")))),
+    el("td", null, selCred),
+    el("td", null, el("input", { type: "checkbox", name: "write", checked: Boolean(v.write), "aria-label": t("drives.colWriteTest") })),
+    el("td", null, el("button", { type: "button", class: "danger small", onclick: () => tr.remove() }, t("common.remove"))),
+  );
+  return tr;
+}
+
+// --------------------------------------------------- browse the subfolders
+
+const br = { dev: null, share: null, path: "", field: null };
+
+async function loadBrowse(p) {
+  $("#br-list").replaceChildren(el("li", { class: "muted" }, t("common.reading")));
+  $("#br-error").textContent = "";
+  try {
+    const r = await call("GET", `/api/devices/${br.dev}/folders?share=${encodeURIComponent(br.share)}&path=${encodeURIComponent(p)}`);
+    br.path = r.path;
+    const parts = r.path ? r.path.split("\\") : [];
+    $("#br-path").replaceChildren(
+      el("button", { type: "button", class: "small", onclick: () => loadBrowse("") }, `\\\\${devName(br.dev)}\\${br.share}`),
+      ...parts.map((x, i) => [" \\ ", el("button", { type: "button", class: "small", onclick: () => loadBrowse(parts.slice(0, i + 1).join("\\")) }, x)]));
+    $("#br-list").replaceChildren(...(r.folders.length
+      ? r.folders.map(c => el("li", null, el("button", { type: "button", class: "folder", onclick: () => loadBrowse(r.path ? `${r.path}\\${c}` : c) }, `📁 ${c}`)))
+      : [el("li", { class: "muted" }, t("browse.noSubfolders"))]));
+  } catch (e) {
+    $("#br-list").replaceChildren();
+    $("#br-error").textContent = e.message;
+  }
+}
+
+function openBrowse(dev, share, field) {
+  Object.assign(br, { dev, share, field, path: "" });
+  $("#dlg-browse").showModal();
+  loadBrowse(field.value || "");
+}
+
+$("#br-use").addEventListener("click", () => { br.field.value = br.path; $("#dlg-browse").close(); });
+$("#br-root").addEventListener("click", () => { br.field.value = ""; $("#dlg-browse").close(); });
+
+function firstFreeLetter() {
+  const used = new Set([...document.querySelectorAll("#tab-entries select[name=letter]")].map(s => s.value));
+  return LETTERS.slice().reverse().find(l => !used.has(l)) || "Z";
+}
+
+function openProfile(p) {
+  editingProfile = p ? p.id : null;
+  $("#profile-title").textContent = p ? t("drives.editProfile", { name: p.name }) : t("drives.newProfile");
+  $("#form-profile").elements.name.value = p ? p.name : "";
+  $("#tab-entries").replaceChildren(...(p ? p.entries : []).map(entryRow));
+  if (!p) $("#tab-entries").append(entryRow({ letter: "W", device: devices[0] && devices[0].id }));
+  $("#dlg-profile").showModal();
+}
+
+$("#new-profile").addEventListener("click", () => openProfile(null));
+$("#add-entry").addEventListener("click", () => $("#tab-entries").append(entryRow({ letter: firstFreeLetter(), device: devices[0] && devices[0].id })));
+
+$("#form-profile").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const entries = [...document.querySelectorAll("#tab-entries tr")].map(tr => {
+    const q = n => tr.querySelector(`[name=${n}]`);
+    return { letter: q("letter").value, device: q("device").value, share: q("share").value,
+      subfolder: q("subfolder").value, credential: q("credential").value || null, write: q("write").checked };
+  });
+  const data = { name: ev.target.elements.name.value, entries };
+  try {
+    if (editingProfile) await call("PUT", `/api/profiles/${editingProfile}`, data);
+    else await call("POST", "/api/profiles", data);
+    $("#dlg-profile").close();
+    message(t("drives.profileSaved"), "ok");
+    await reload();
+  } catch (e) { message(e.message, "error"); alert(e.message); }
+});
+
+async function removeProfile(p) {
+  if (!confirm(t("drives.confirmDeleteProfile", { name: p.name }))) return;
+  try { await call("DELETE", `/api/profiles/${p.id}`); message(t("drives.profileDeleted"), "ok"); await reload(); }
+  catch (e) { message(e.message, "error"); }
+}
+
+// ----------------------------------------------------------------- apply
+
+function machineChoice(m, input) {
+  return el("label", null, input, machineLabel(m),
+    m.managed ? (isOnline(m.last_contact) ? "" : el("span", { class: "error" }, " ⚠ " + t("map.stopped"))) : " (" + t("map.notManaged") + ")");
+}
+
+function openApply(p) {
+  profileToApply = p.id;
+  lastPreview = null;
+  $("#apply-title").textContent = t("drives.applyName", { name: p.name });
+  $("#machine-choices").replaceChildren(...(machines.length
+    ? machines.map(m => machineChoice(m, el("input", { type: "checkbox", name: "machine", value: m.id, disabled: !m.managed })))
+    : [el("span", { class: "muted" }, t("drives.noMachinesApply"))]));
+  $("#preview-result").replaceChildren();
+  $("#confirm-row").hidden = true;
+  $("#sec-apply").hidden = false;
+  $("#sec-apply").scrollIntoView({ behavior: "smooth" });
+}
+
+const rowStatus = s => t(`preview.${s}`);
+
+$("#btn-preview").addEventListener("click", async () => {
+  const chosen = [...document.querySelectorAll("#machine-choices input:checked")].map(x => x.value);
+  const mode = document.querySelector("input[name=mode]:checked").value;
+  try {
+    const a = await call("POST", "/api/preview", { profile: profileToApply, machines: chosen, mode });
+    lastPreview = { mode, machines: chosen };
+    $("#preview-result").replaceChildren(...a.map(m => el("div", { class: "card" },
+      el("h3", null, `${m.computer} · ${m.user}`, m.online ? "" : el("span", { class: "error" }, " ⚠ " + t("drives.agentStoppedQueued"))),
+      m.warnings.length ? el("ul", { class: "warnings" }, ...m.warnings.map(x => el("li", null, msg(x)))) : null,
+      el("div", { class: "scroll" }, el("table", null,
+        el("thead", null, el("tr", null, ...["drives.colLetter", "drives.colStatus", "drives.willBecome", "drives.now", "drives.change"].map(k => el("th", null, t(k))))),
+        el("tbody", null, ...m.rows.map(r => {
+          const decidable = r.status === "conflict" || r.status === "to_remove" || (r.status === "new" && r.protected);
+          const byDefault = r.status === "to_remove" ? !r.protected : (r.status === "new");
+          return el("tr", { class: decidable ? "highlight" : null },
+            el("td", null, `${r.letter}:`, r.protected ? el("span", { class: "warn" }, " " + t("map.protected")) : null),
+            el("td", { class: r.status === "same" ? "muted" : (r.status === "new" ? "ok" : "warn") }, rowStatus(r.status)),
+            el("td", null, r.path || "—"),
+            el("td", { class: "muted" }, r.current || "—"),
+            el("td", null, decidable
+              ? el("input", { type: "checkbox", "data-machine": m.machine, "data-letter": r.letter, checked: byDefault && !r.protected, "aria-label": t("drives.changeLetter", { letter: r.letter }) })
+              : el("span", { class: "muted" }, r.status === "new" ? t("common.yes") : t("common.no"))));
+        })))))));
+    $("#confirm-row").hidden = !a.length;
+  } catch (e) { message(e.message, "error"); }
+});
+
+const outcomeLine = r => r.map(x => `${machineName(x.machine)}: ${msg(x.outcome)}`).join(" · ");
+
+$("#btn-apply").addEventListener("click", async () => {
+  if (!lastPreview) return;
+  const choices = {};
+  for (const c of document.querySelectorAll("#preview-result input[type=checkbox]:checked")) {
+    (choices[c.dataset.machine] ??= []).push(c.dataset.letter);
+  }
+  try {
+    const r = await call("POST", "/api/apply", { profile: profileToApply, ...lastPreview, choices });
+    message(outcomeLine(r), "ok");
+    $("#sec-apply").hidden = true;
+    await reload();
+  } catch (e) { message(e.message, "error"); }
+});
+
+// ------------------------------------------- apply by choice (wizard)
+// Steps: 0 machines, 1 drives to remove, 2 entries to mount, 3 summary.
+
+const wz = { profile: null, step: 0, machines: [], remove: {}, entries: {}, plan: null };
+const wzMachine = id => machines.find(m => m.id === id);
+const wzDrives = m => (m.snapshot && m.snapshot.drives) || [];
+const wzEntryPath = v => `${devName(v.device)}\\${v.share}${v.subfolder ? "\\" + v.subfolder : ""}`;
+
+// Same comparison as the server: the same NAS counts as equal by name or by IP.
+function wzSplit(p) {
+  const m = String(p || "").match(/^\\\\([^\\]+)\\([^\\]+)(?:\\(.+?))?\\?$/);
+  return m ? { server: m[1].toLowerCase(), rest: `${m[2]}\\${m[3] || ""}`.toLowerCase() } : null;
+}
+function wzDevOf(server) { return devices.find(d => d.addresses.some(a => a.toLowerCase() === server)); }
+function wzSamePath(p, m, v) {
+  const x = wzSplit(p);
+  if (!x) return false;
+  const d = wzDevOf(x.server);
+  const address = (m.preferred_addresses || {})[v.device] || ((devices.find(y => y.id === v.device) || { addresses: [""] }).addresses[0]);
+  const sameServer = d ? d.id === v.device : x.server === String(address).toLowerCase();
+  return sameServer && x.rest === `${v.share}\\${v.subfolder || ""}`.toLowerCase();
+}
+
+function openWizard(p) {
+  Object.assign(wz, { profile: p, step: 0, machines: [], remove: {}, entries: {}, plan: null });
+  $("#wz-title").textContent = t("drives.applyChoiceName", { name: p.name });
+  wzDraw();
+  $("#dlg-wizard").showModal();
+}
+
+function wzPrepareMachine(id) {
+  if (!wz.remove[id]) wz.remove[id] = new Set();
+  if (!wz.entries[id]) wz.entries[id] = Object.fromEntries(wz.profile.entries.map(v => [v.letter, { mount: true, letter: v.letter }]));
+}
+
+// State of an entry to mount on a machine, as the server will compute it.
+function wzEntryState(m, v, choice, doubles) {
+  if (doubles.has(choice.letter)) return { cls: "error", text: t("wizard.letterTwice"), error: true };
+  const now = wzDrives(m).find(u => u.letter === choice.letter);
+  if (!now) return { cls: "ok", text: t("preview.new") };
+  if (wzSamePath(now.path, m, v)) return { cls: "muted", text: t("wizard.alreadyLeft") };
+  if (wz.remove[m.id].has(choice.letter)) return { cls: "warn", text: t("map.replaces", { path: now.path }) };
+  return { cls: "error", text: t("wizard.takenBy", { path: now.path }), error: true };
+}
+
+function wzDoubles(id) {
+  const seen = new Set(), doubles = new Set();
+  for (const s of Object.values(wz.entries[id])) if (s.mount) (seen.has(s.letter) ? doubles : seen).add(s.letter);
+  return doubles;
+}
+
+function wzStep0() {
+  if (!machines.length) return [el("p", { class: "muted" }, t("wizard.noMachines"))];
+  return [el("p", { class: "muted" }, t("wizard.step0Intro")),
+    el("div", { class: "choices" }, ...machines.map(m => machineChoice(m,
+      el("input", { type: "checkbox", value: m.id, disabled: !m.managed, checked: wz.machines.includes(m.id),
+        onchange: ev => {
+          wz.machines = ev.target.checked ? [...wz.machines, m.id] : wz.machines.filter(x => x !== m.id);
+          wzUpdateButtons();
+        } }))))];
+}
+
+function wzStep1() {
+  return [el("p", { class: "muted" }, t("wizard.step1Intro")),
+    ...wz.machines.map(id => {
+      const m = wzMachine(id);
+      const drives = wzDrives(m);
+      const set = wz.remove[id];
+      const title = el("h3", null, machineLabel(m),
+        m.snapshot ? el("span", { class: "muted" }, " — " + t("wizard.snapshotOf", { when: ago(m.snapshot.when) })) : null);
+      if (!drives.length) return el("div", { class: "card" }, title,
+        el("p", { class: "muted" }, m.snapshot ? t("wizard.noDrives") : t("wizard.noSnapshot")));
+      const rows = drives.map(u => {
+        const inProfile = wz.profile.entries.some(v => v.letter === u.letter && wzSamePath(u.path, m, v));
+        const prot = m.protected_letters.includes(u.letter);
+        return el("tr", { class: prot ? "highlight" : null },
+          el("td", null, el("input", { type: "checkbox", checked: set.has(u.letter), "aria-label": t("wizard.removeLetter", { letter: u.letter }),
+            onchange: ev => { ev.target.checked ? set.add(u.letter) : set.delete(u.letter); } })),
+          el("td", null, `${u.letter}:`, prot ? el("span", { class: "warn" }, " " + t("map.protected")) : null),
+          el("td", null, u.path),
+          el("td", { class: u.status === "connected" ? "ok" : "warn" }, driveStatus(u.status)),
+          el("td", { class: "muted" }, inProfile ? t("wizard.asInProfile") : ""));
+      });
+      const all = val => () => {
+        for (const u of drives) if (val && !m.protected_letters.includes(u.letter)) set.add(u.letter); else if (!val) set.delete(u.letter);
+        wzDraw();
+      };
+      return el("div", { class: "card" }, title,
+        el("p", { class: "row" },
+          el("button", { type: "button", class: "small", onclick: all(true) }, t("wizard.tickAll")), " ",
+          el("button", { type: "button", class: "small", onclick: all(false) }, t("common.none"))),
+        el("div", { class: "scroll" }, el("table", null,
+          el("thead", null, el("tr", null, ...["wizard.colRemove", "drives.colLetter", "drives.colPath", "drives.colStatus"].map(k => el("th", null, t(k))), el("th", null, ""))),
+          el("tbody", null, ...rows))));
+    })];
+}
+
+function wzStep2() {
+  return [el("p", { class: "muted" }, t("wizard.step2Intro")),
+    ...wz.machines.map(id => {
+      const m = wzMachine(id);
+      const drives = wzDrives(m);
+      const tbody = el("tbody");
+      const drawRows = () => {
+        const doubles = wzDoubles(id);
+        tbody.replaceChildren(...wz.profile.entries.map(v => {
+          const s = wz.entries[id][v.letter];
+          const st = s.mount ? wzEntryState(m, v, s, doubles) : { cls: "muted", text: t("wizard.notMounted") };
+          const sel = el("select", { disabled: !s.mount, "aria-label": t("wizard.letterFor", { letter: v.letter }),
+            onchange: ev => { s.letter = ev.target.value; drawRows(); wzUpdateButtons(); } },
+            ...LETTERS.map(l => {
+              const u = drives.find(x => x.letter === l);
+              const note = !u ? "" : (wz.remove[id].has(l) ? " " + t("wizard.beingRemoved") : " " + t("wizard.takenShort", { path: u.path }));
+              return el("option", { value: l, selected: l === s.letter }, `${l}:${note}`);
+            }));
+          return el("tr", { class: st.error ? "highlight" : null },
+            el("td", null, el("input", { type: "checkbox", checked: s.mount, "aria-label": t("wizard.mountLetter", { letter: v.letter }),
+              onchange: ev => { s.mount = ev.target.checked; drawRows(); wzUpdateButtons(); } })),
+            el("td", null, `${v.letter}: ${wzEntryPath(v)}`),
+            el("td", null, sel),
+            el("td", { class: st.cls }, st.text));
+        }));
+      };
+      drawRows();
+      return el("div", { class: "card" }, el("h3", null, machineLabel(m)),
+        el("div", { class: "scroll" }, el("table", null,
+          el("thead", null, el("tr", null, ...["wizard.colMount", "wizard.colEntry", "drives.colLetter", "wizard.colOutcome"].map(k => el("th", null, t(k))))),
+          tbody)));
+    })];
+}
+
+function wzStep3() {
+  if (!wz.plan) return [el("p", { class: "muted" }, t("wizard.computing"))];
+  return [el("p", { class: "muted" }, t("wizard.step3Intro")),
+    ...wz.plan.map(x => el("div", { class: "card" },
+      el("h3", null, `${x.computer} · ${x.user}`, x.online ? "" : el("span", { class: "error" }, " ⚠ " + t("drives.agentStoppedQueued"))),
+      x.warnings.length ? el("ul", { class: "warnings" }, ...x.warnings.map(w => el("li", null, msg(w)))) : null,
+      x.operations.length
+        ? el("div", { class: "scroll" }, el("table", null,
+          el("thead", null, el("tr", null, ...["drives.colLetter", "wizard.colAction", "drives.willBecome", "drives.now"].map(k => el("th", null, t(k))))),
+          el("tbody", null, ...x.operations.map(op => el("tr", null,
+            el("td", null, `${op.letter}:`),
+            el("td", { class: op.action === "mount" ? "ok" : "warn" }, t(`action.${op.action}`)),
+            el("td", null, op.path || "—"),
+            el("td", { class: "muted" }, op.old || "—"))))))
+        : el("p", { class: "muted" }, t("wizard.nothingHere"))))];
+}
+
+function wzErrors() {
+  if (wz.step === 0 && !wz.machines.length) return t("err.chooseMachine");
+  if (wz.step === 2) {
+    for (const id of wz.machines) {
+      const m = wzMachine(id), doubles = wzDoubles(id);
+      for (const v of wz.profile.entries) {
+        const s = wz.entries[id][v.letter];
+        if (s.mount && wzEntryState(m, v, s, doubles).error) return t("wizard.fixLetter", { machine: m.computer, letter: s.letter });
+      }
+    }
+  }
+  return "";
+}
+
+function wzUpdateButtons() {
+  const error = wzErrors();
+  $("#wz-error").textContent = wz.step === 0 ? "" : error;
+  $("#wz-next").disabled = Boolean(error) || (wz.step === 3 && !wz.plan);
+  $("#wz-next").textContent = wz.step === 3 ? t("common.apply") : t("wizard.next");
+  $("#wz-back").disabled = wz.step === 0;
+}
+
+function wzDraw() {
+  [...$("#wz-steps").children].forEach((li, i) => li.classList.toggle("active", i === wz.step));
+  $("#wz-body").replaceChildren(...[wzStep0, wzStep1, wzStep2, wzStep3][wz.step]());
+  wzUpdateButtons();
+}
+
+function wzRequest(dryRun) {
+  return {
+    profile: wz.profile.id, dryRun,
+    machines: wz.machines.map(id => ({
+      machine: id,
+      remove: [...wz.remove[id]],
+      entries: Object.entries(wz.entries[id]).filter(([, s]) => s.mount).map(([entry, s]) => ({ entry, letter: s.letter })),
+    })),
+  };
+}
+
+$("#wz-back").addEventListener("click", () => {
+  if (wz.step > 0) { wz.step--; wz.plan = null; wzDraw(); }
+});
+
+$("#wz-next").addEventListener("click", async () => {
+  if (wzErrors()) return;
+  if (wz.step === 0) {
+    // The order follows the machines table.
+    wz.machines = machines.filter(m => wz.machines.includes(m.id)).map(m => m.id);
+    wz.machines.forEach(wzPrepareMachine);
+  }
+  if (wz.step < 3) {
+    wz.step++;
+    wz.plan = null;
+    wzDraw();
+    if (wz.step === 3) {
+      try { wz.plan = await call("POST", "/api/apply-choice", wzRequest(true)); }
+      catch (e) { $("#wz-body").replaceChildren(el("p", { class: "error" }, e.message)); return; }
+      wzDraw();
+    }
+    return;
+  }
+  try {
+    $("#wz-next").disabled = true;
+    const r = await call("POST", "/api/apply-choice", wzRequest(false));
+    $("#dlg-wizard").close();
+    message(outcomeLine(r), "ok");
+    await reload();
+  } catch (e) { $("#wz-error").textContent = e.message; $("#wz-next").disabled = false; }
+});
+
+// ------------------------------------------------------------------ jobs
+
+const jobClass = { completed: "ok", completed_with_errors: "error", cancelled: "muted", queued: "warn", running: "warn" };
+const opClass = { ok: "ok", error: "error", suspended: "error", waiting: "warn", queued: "muted", cancelled: "muted" };
+
+function jobWhat(j) {
+  if (j.type === "restore") return t("jobs.restore");
+  if (j.type === "map") return t("jobs.fromMap");
+  return `${j.profile_name} (${t("mode." + j.mode)})`;
+}
+
+function drawJobs() {
+  if (!jobs.length) {
+    $("#tab-jobs").replaceChildren(el("tr", null, el("td", { colspan: 6, class: "muted" }, t("jobs.none"))));
+    return;
+  }
+  $("#tab-jobs").replaceChildren(...jobs.map(j => el("tr", null,
+    el("td", { class: "muted" }, ago(j.created)),
+    el("td", null, machineName(j.machine)),
+    el("td", null, jobWhat(j)),
+    el("td", { class: jobClass[j.status] }, t("jobStatus." + j.status)),
+    el("td", null, ...j.operations.map(op => el("div", null,
+      `${op.letter}: ${t("action." + op.action)} `, el("span", { class: opClass[op.status] }, t("opStatus." + op.status)),
+      op.message ? el("span", { class: "muted" }, ` — ${msg(op.message)}`) : null))),
+    el("td", { class: "actions" },
+      ["queued", "running"].includes(j.status) ? el("button", { type: "button", onclick: () => jobAction(j, "cancel") }, t("common.cancel")) : null,
+      j.restore && j.status.startsWith("completed") ? el("button", { type: "button", onclick: () => jobAction(j, "restore") }, t("jobs.restoreButton")) : null),
+  )));
+}
+
+async function jobAction(j, action) {
+  if (!confirm(t(action === "cancel" ? "jobs.confirmCancel" : "jobs.confirmRestore"))) return;
+  try {
+    const r = await call("POST", `/api/jobs/${j.id}/${action}`);
+    message(r.outcome ? msg(r.outcome) : t("common.done"), "ok");
+    await reload();
+  } catch (e) { message(e.message, "error"); }
+}
+
+function drawSuspensions() {
+  $("#sec-suspensions").hidden = !suspensions.length;
+  $("#tab-suspensions").replaceChildren(...suspensions.map(s => el("tr", null,
+    el("td", null, (credentials.find(c => c.id === s.credential) || { user: s.credential }).user),
+    el("td", null, devName(s.device)),
+    el("td", null, machineName(s.machine)),
+    el("td", { class: "muted" }, ago(s.when)),
+    el("td", { class: "muted" }, msg(s.message)),
+    el("td", null, el("button", { type: "button", onclick: () => unlock(s) }, t("jobs.unlock"))),
+  )));
+}
+
+async function unlock(s) {
+  if (!confirm(t("jobs.confirmUnlock"))) return;
+  try {
+    const r = await call("POST", "/api/suspensions/unlock", { credential: s.credential, device: s.device });
+    message(t("jobs.unlocked", { n: r.resumed }), "ok");
+    await reload();
+  } catch (e) { message(e.message, "error"); }
+}
+
+// Refresh every 15 seconds, unless a dialog is open.
+setInterval(() => {
+  if (document.querySelector("dialog[open]") || document.hidden) return;
+  reload().catch(() => {});
+}, 15000);
+
+reveal(reload().catch(e => message(e.message, "error")));
+
+// Collapsible panels: click on the title. The state stays in this browser;
+// if it cannot be saved, the panels start open.
+(() => {
+  const KEY = "nasm.drives.panels";
+  let closed = {};
+  try { closed = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { }
+  for (const s of document.querySelectorAll("section.collapsible")) {
+    const b = s.querySelector(".toggle");
+    const set = open => { s.classList.toggle("closed", !open); b.setAttribute("aria-expanded", open ? "true" : "false"); };
+    set(!closed[s.dataset.panel]);
+    b.addEventListener("click", () => {
+      const open = s.classList.contains("closed");
+      set(open);
+      closed[s.dataset.panel] = !open;
+      try { localStorage.setItem(KEY, JSON.stringify(closed)); } catch { }
+    });
+  }
+})();
+</script>
+</body>
+</html>

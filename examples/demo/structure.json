@@ -1,0 +1,105 @@
+{
+  "nas01": {
+    "when": "2026-06-15T09:56:00.000Z",
+    "volumes": [
+      {
+        "name": "DataVol1",
+        "type": "Ready",
+        "total_bytes": 21400000000000,
+        "free_bytes": 7900000000000,
+        "shares": [
+          {
+            "name": "Documents",
+            "used_bytes": 410000000000
+          },
+          {
+            "name": "Photos",
+            "used_bytes": 2600000000000
+          },
+          {
+            "name": "Music",
+            "used_bytes": 380000000000
+          },
+          {
+            "name": "Projects",
+            "used_bytes": 1900000000000
+          },
+          {
+            "name": "Public",
+            "used_bytes": 95000000000
+          },
+          {
+            "name": "PC-Backup",
+            "used_bytes": 6100000000000
+          }
+        ]
+      },
+      {
+        "name": "MediaSSD",
+        "type": "Ready",
+        "total_bytes": 3600000000000,
+        "free_bytes": 1100000000000,
+        "shares": [
+          {
+            "name": "Films",
+            "used_bytes": 1700000000000
+          },
+          {
+            "name": "Series",
+            "used_bytes": 640000000000
+          },
+          {
+            "name": "Kids",
+            "used_bytes": 180000000000
+          }
+        ]
+      }
+    ]
+  },
+  "nas02": {
+    "when": "2026-06-15T09:56:00.000Z",
+    "volumes": [
+      {
+        "name": "Backup",
+        "type": "Ready",
+        "total_bytes": 7200000000000,
+        "free_bytes": 850000000000,
+        "shares": [
+          {
+            "name": "Nightly",
+            "used_bytes": 5400000000000
+          },
+          {
+            "name": "Archive",
+            "used_bytes": 900000000000
+          }
+        ]
+      }
+    ]
+  },
+  "nas03": {
+    "when": "2026-06-12T10:00:00.000Z",
+    "volumes": [
+      {
+        "name": "ArchiveVol",
+        "type": "Ready",
+        "total_bytes": 43600000000000,
+        "free_bytes": 29000000000000,
+        "shares": [
+          {
+            "name": "Video-Archive",
+            "used_bytes": 11200000000000
+          },
+          {
+            "name": "Scans",
+            "used_bytes": 1400000000000
+          },
+          {
+            "name": "Old-PCs",
+            "used_bytes": 2000000000000
+          }
+        ]
+      }
+    ]
+  }
+}

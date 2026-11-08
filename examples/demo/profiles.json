@@ -1,0 +1,78 @@
+[
+  {
+    "id": "office",
+    "name": "Office",
+    "entries": [
+      {
+        "letter": "M",
+        "device": "nas01",
+        "share": "Music",
+        "subfolder": "",
+        "credential": null,
+        "write": false
+      },
+      {
+        "letter": "P",
+        "device": "nas01",
+        "share": "Projects",
+        "subfolder": "",
+        "credential": null,
+        "write": true
+      },
+      {
+        "letter": "S",
+        "device": "nas01",
+        "share": "Documents",
+        "subfolder": "",
+        "credential": null,
+        "write": true
+      },
+      {
+        "letter": "T",
+        "device": "nas01",
+        "share": "Public",
+        "subfolder": "",
+        "credential": null,
+        "write": true
+      }
+    ]
+  },
+  {
+    "id": "media",
+    "name": "Media",
+    "entries": [
+      {
+        "letter": "K",
+        "device": "nas01",
+        "share": "Kids",
+        "subfolder": "",
+        "credential": "media",
+        "write": false
+      },
+      {
+        "letter": "V",
+        "device": "nas01",
+        "share": "Films",
+        "subfolder": "",
+        "credential": "media",
+        "write": false
+      },
+      {
+        "letter": "W",
+        "device": "nas01",
+        "share": "Series",
+        "subfolder": "",
+        "credential": "media",
+        "write": false
+      },
+      {
+        "letter": "Y",
+        "device": "nas03",
+        "share": "Video-Archive",
+        "subfolder": "",
+        "credential": "media",
+        "write": false
+      }
+    ]
+  }
+]

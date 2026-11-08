@@ -1,0 +1,6 @@
+# The agent is distributed byte for byte: agents compare the sha256
+# fingerprint of the file. Git must not change the line endings of scripts,
+# otherwise a checkout would change the fingerprint and every agent would
+# update itself again.
+*.ps1 -text
+*.cmd -text

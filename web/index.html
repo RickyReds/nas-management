@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang = "en">
+<head>
+<meta charset = "utf-8">
+<meta name = "viewport" content = "width=device-width, initial-scale=1">
+<title data-i18n = "title.devices">NAS-Management</title>
+<meta name = "description" data-i18n-content = "meta.description" content = "Network drives, NAS status and credentials for a small Windows network.">
+<link rel = "icon" href = "icon.svg">
+<script src = "theme.js"></script>
+<link rel = "stylesheet" href = "style.css">
+</head>
+<body>
+<header>
+  <h1>NAS-Management</h1>
+  <nav id = "menu" hidden>
+    <a href = "/status.html" data-i18n = "nav.status">Status</a>
+    <a href = "/map.html" data-i18n = "nav.map">Map</a>
+    <a href = "/" aria-current = "page" data-i18n = "nav.devices">Devices</a>
+    <a href = "/drives.html" data-i18n = "nav.drives">Network drives</a>
+    <a href = "/settings.html" data-i18n = "nav.settings">Settings</a>
+  </nav>
+  <button id = "logout" type = "button" hidden data-i18n = "common.logout">Log out</button>
+</header>
+
+<main aria-busy = "true">
+  <p id = "message" role = "status" aria-live = "polite"></p>
+
+  <section id = "login" hidden>
+    <h2 data-i18n = "login.title">Log in</h2>
+    <form id = "form-login" class = "row">
+      <label><span data-i18n = "login.key">Access key</span> <input id = "key" type = "password" autocomplete = "current-password" required></label>
+      <button class = "primary" type = "submit" data-i18n = "login.enter">Enter</button>
+    </form>
+    <p class = "muted"><span data-i18n = "login.hint">The key is shown on the server with</span> <code>node src/cli.js key --show</code></p>
+  </section>
+
+  <section id = "sec-devices" hidden>
+    <h2 data-i18n = "devices.title">Devices</h2>
+    <form id = "form-add" class = "row">
+      <label><span data-i18n = "devices.addressLabel">IP or name</span> <input id = "new-address" required placeholder = "192.168.1.20"></label>
+      <label><span data-i18n = "devices.nameLabel">Display name (optional)</span> <input id = "new-name"></label>
+      <button class = "primary" type = "submit" data-i18n = "common.add">Add</button>
+    </form>
+    <p class = "muted" data-i18n = "devices.addHint">Adding tries the ports and reads what the device says about itself, without logging in.</p>
+    <div class = "scroll">
+      <table>
+        <thead><tr>
+          <th data-i18n = "devices.colName">Name</th><th data-i18n = "devices.colType">Type</th><th data-i18n = "devices.colAddresses">Addresses</th>
+          <th data-i18n = "devices.colModel">Model</th><th data-i18n = "devices.colFirmware">Firmware</th><th>MAC</th>
+          <th>Wake-on-LAN</th><th data-i18n = "devices.colNotes">Notes</th><th><span class = "sr-only" data-i18n = "common.actions">Actions</span></th>
+        </tr></thead>
+        <tbody id = "tab-devices"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id = "sec-credentials" hidden>
+    <h2 data-i18n = "cred.title">Credentials</h2>
+    <p><button id = "new-credential" type = "button" class = "primary" data-i18n = "cred.new">New credential</button></p>
+    <div class = "scroll">
+      <table>
+        <thead><tr>
+          <th data-i18n = "cred.colUser">User</th><th>Id</th><th data-i18n = "cred.colRole">Role</th><th data-i18n = "cred.colDevices">Devices</th>
+          <th data-i18n = "cred.colPassword">Password</th><th data-i18n = "cred.colSource">Source</th><th><span class = "sr-only" data-i18n = "common.actions">Actions</span></th>
+        </tr></thead>
+        <tbody id = "tab-credentials"></tbody>
+      </table>
+    </div>
+    <p class = "muted" data-i18n = "cred.hint">Passwords are encrypted on the server and this page never receives them.</p>
+  </section>
+</main>
+
+<dialog id = "dlg-device">
+  <form method = "dialog" id = "form-device">
+    <h2 data-i18n = "devices.editTitle">Edit device</h2>
+    <label><span data-i18n = "devices.colName">Name</span> <input name = "name" required></label>
+    <label><span data-i18n = "devices.colType">Type</span> <select name = "type"><option value = "qnap">qnap</option><option value = "generic" data-i18n = "devices.typeGeneric">generic</option></select></label>
+    <label><span data-i18n = "devices.addressesLabel">Addresses, comma separated; the first one is the one normally used</span> <input name = "addresses" required></label>
+    <label><span data-i18n = "devices.macLabel">MAC, comma separated</span> <input name = "mac"></label>
+    <label><span data-i18n = "devices.colModel">Model</span> <input name = "model"></label>
+    <label><span data-i18n = "devices.colFirmware">Firmware</span> <input name = "firmware"></label>
+    <label><span data-i18n = "devices.metricsCredential">Credential for metrics</span> <select name = "metrics_credential"></select></label>
+    <label>Wake-on-LAN <select name = "wol"><option value = "yes" data-i18n = "wol.yes">works</option><option value = "no" data-i18n = "wol.no">not available</option><option value = "untested" data-i18n = "wol.untested">untested</option></select></label>
+    <label><span data-i18n = "devices.colNotes">Notes</span> <textarea name = "notes"></textarea></label>
+    <div class = "buttons">
+      <button type = "button" data-close data-i18n = "common.cancel">Cancel</button>
+      <button class = "primary" type = "submit" data-i18n = "common.save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id = "dlg-credential">
+  <form method = "dialog" id = "form-credential">
+    <h2 id = "credential-title" data-i18n = "cred.titleOne">Credential</h2>
+    <label><span data-i18n = "cred.colUser">User</span> <input name = "user" required autocomplete = "off"></label>
+    <label><span data-i18n = "cred.colPassword">Password</span> <input name = "password" type = "password" autocomplete = "new-password"></label>
+    <p class = "muted" id = "password-note" data-i18n = "cred.keepEmpty">Leave it empty to keep it unchanged.</p>
+    <label><span data-i18n = "cred.colRole">Role</span> <input name = "role"></label>
+    <fieldset>
+      <legend class = "muted" data-i18n = "cred.colDevices">Devices</legend>
+      <div class = "choices" id = "device-choices"></div>
+    </fieldset>
+    <div class = "buttons">
+      <button type = "button" data-close data-i18n = "common.cancel">Cancel</button>
+      <button class = "primary" type = "submit" data-i18n = "common.save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src = "common.js"></script>
+<script>
+let devices = [], credentials = [], editing = null;
+onLoggedOut = () => show(false);
+
+function show(inside) {
+  $("#login").hidden = inside;
+  for (const s of ["#sec-devices", "#sec-credentials", "#logout", "#menu"]) $(s).hidden = !inside;
+}
+
+const wolClass = { yes: "ok", no: "muted", untested: "warn" };
+
+function drawDevices() {
+  $("#tab-devices").replaceChildren(...devices.map(d => el("tr", null,
+    el("td", null, el("strong", null, d.name), el("div", { class: "muted" }, d.id)),
+    el("td", null, d.type === "generic" ? t("devices.typeGeneric") : d.type),
+    el("td", null, d.addresses.join(", ")),
+    el("td", null, d.model || "—"),
+    el("td", null, d.firmware || "—"),
+    el("td", null, d.mac.length ? d.mac.join(", ") : "—"),
+    el("td", { class: wolClass[d.wol] }, t(`wol.${d.wol}`),
+      d.mac.length ? el("div", null, el("button", { type: "button", class: "small", onclick: ev => testWol(d, ev.target),
+        title: t("devices.wolTestTitle") },
+        d.wol === "no" ? t("devices.wolTryAnyway") : t("devices.wolTest"))) : null),
+    el("td", { class: "muted" }, d.notes || "", d.detected ? el("div", null, t("devices.openPortsAtAdd", { ports: d.detected.open_ports.join(", ") || t("common.none") })) : null),
+    el("td", { class: "actions" },
+      el("button", { type: "button", onclick: () => openDevice(d) }, t("common.edit")), " ",
+      el("button", { type: "button", class: "danger", onclick: () => removeDevice(d) }, t("common.remove"))),
+  )));
+}
+
+function drawCredentials() {
+  const name = id => (devices.find(d => d.id === id) || { name: id }).name;
+  $("#tab-credentials").replaceChildren(...credentials.map(c => el("tr", null,
+    el("td", null, el("strong", null, c.user)),
+    el("td", { class: "muted" }, c.id),
+    el("td", null, c.role || "—"),
+    el("td", null, c.devices.map(name).join(", ") || "—"),
+    el("td", { class: c.has_password ? "ok" : "warn" }, c.has_password ? t("cred.present") : t("cred.missing")),
+    el("td", { class: "muted" }, c.source || ""),
+    el("td", { class: "actions" },
+      el("button", { type: "button", onclick: () => openCredential(c) }, t("common.edit")), " ",
+      el("button", { type: "button", class: "danger", onclick: () => removeCredential(c) }, t("common.remove"))),
+  )));
+}
+
+async function reload() {
+  [devices, credentials] = await Promise.all([call("GET", "/api/devices"), call("GET", "/api/credentials")]);
+  drawDevices();
+  drawCredentials();
+}
+
+function openDevice(d) {
+  editing = d.id;
+  const f = $("#form-device");
+  for (const k of ["name", "type", "model", "firmware", "wol", "notes"]) f.elements[k].value = d[k] || "";
+  f.elements.addresses.value = d.addresses.join(", ");
+  f.elements.mac.value = d.mac.join(", ");
+  f.elements.metrics_credential.replaceChildren(
+    el("option", { value: "" }, t("devices.metricsAuto")),
+    ...credentials.filter(c => c.devices.includes(d.id)).map(c => el("option", { value: c.id, selected: c.id === d.metrics_credential }, c.user)));
+  $("#dlg-device").showModal();
+}
+
+// Wake-on-LAN test: sends the packet and follows the status for up to 5
+// minutes. If it comes up, the service marks it as working by itself; if
+// not, the page offers to mark it as not available.
+async function testWol(d, button) {
+  const note = d.wol === "no" ? "\n\n" + t("devices.wolMarkedNo") : "";
+  if (!confirm(t("devices.wolConfirm", { name: d.name, mac: d.mac[0] }) + note)) return;
+  button.disabled = true;
+  try {
+    await call("POST", `/api/devices/${d.id}/wake`, { force: d.wol === "no" });
+  } catch (e) { message(e.message, "error"); button.disabled = false; return; }
+  const start = Date.now();
+  const elapsed = () => { const s = Math.round((Date.now() - start) / 1000); return s < 60 ? t("time.seconds", { s }) : t("time.minutesSeconds", { m: Math.floor(s / 60), s: s % 60 }); };
+  while (Date.now() - start < 5.5 * 60 * 1000) {
+    message(t("devices.wolWaiting", { name: d.name, elapsed: elapsed() }));
+    await new Promise(ok => setTimeout(ok, 5000));
+    let s;
+    try { s = (await call("GET", "/api/status")).find(x => x.id === d.id); } catch { continue; }
+    const result = s && s.wake && s.wake.result;
+    if (s && (s.status === "on" || result === "up")) {
+      message(t("devices.wolUp", { name: d.name, elapsed: elapsed() }), "ok");
+      button.disabled = false;
+      await reload();
+      return;
+    }
+    if (s && s.status === "booting") message(t("devices.wolBooting", { name: d.name, elapsed: elapsed() }));
+    if (result === "not_up") break;
+  }
+  button.disabled = false;
+  if (d.wol !== "no" && confirm(t("devices.wolNotUpAsk", { name: d.name }))) {
+    try { await call("PATCH", `/api/devices/${d.id}`, { wol: "no" }); message(t("devices.wolMarkedNoDone", { name: d.name }), "warn"); await reload(); }
+    catch (e) { message(e.message, "error"); }
+  } else {
+    message(t("devices.wolNotUp", { name: d.name }), "error");
+  }
+}
+
+async function removeDevice(d) {
+  if (!confirm(t("devices.confirmRemove", { name: d.name }))) return;
+  try { await call("DELETE", `/api/devices/${d.id}`); message(t("devices.removed", { name: d.name }), "ok"); await reload(); }
+  catch (e) { message(e.message, "error"); }
+}
+
+function openCredential(c) {
+  editing = c ? c.id : null;
+  const f = $("#form-credential");
+  f.reset();
+  $("#credential-title").textContent = c ? t("cred.editTitle", { user: c.user }) : t("cred.new");
+  $("#password-note").hidden = !c;
+  f.elements.user.value = c ? c.user : "";
+  f.elements.role.value = c ? c.role : "";
+  $("#device-choices").replaceChildren(...devices.map(d => el("label", null,
+    el("input", { type: "checkbox", name: "device", value: d.id, checked: Boolean(c && c.devices.includes(d.id)) }), d.name)));
+  $("#dlg-credential").showModal();
+}
+
+async function removeCredential(c) {
+  if (!confirm(t("cred.confirmRemove", { user: c.user, id: c.id }))) return;
+  try { await call("DELETE", `/api/credentials/${c.id}`); message(t("cred.removed", { id: c.id }), "ok"); await reload(); }
+  catch (e) { message(e.message, "error"); }
+}
+
+const splitList = s => s.split(",").map(x => x.trim()).filter(Boolean);
+
+$("#form-device").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const f = ev.target.elements;
+  try {
+    await call("PATCH", `/api/devices/${editing}`, {
+      name: f.name.value, type: f.type.value, addresses: splitList(f.addresses.value), mac: splitList(f.mac.value),
+      model: f.model.value, firmware: f.firmware.value, wol: f.wol.value, notes: f.notes.value,
+      metrics_credential: f.metrics_credential.value || null,
+    });
+    $("#dlg-device").close();
+    message(t("devices.saved"), "ok");
+    await reload();
+  } catch (e) { message(e.message, "error"); }
+});
+
+$("#form-credential").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const f = ev.target.elements;
+  const data = {
+    user: f.user.value, role: f.role.value,
+    devices: [...ev.target.querySelectorAll("input[name=device]:checked")].map(x => x.value),
+  };
+  if (f.password.value) data.password = f.password.value;
+  if (editing) data.id = editing; else data.isNew = true;
+  try {
+    await call("POST", "/api/credentials", data);
+    $("#dlg-credential").close();
+    message(t("cred.saved"), "ok");
+    await reload();
+  } catch (e) { message(e.message, "error"); }
+});
+
+$("#new-credential").addEventListener("click", () => openCredential(null));
+
+$("#form-add").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const button = ev.target.querySelector("button");
+  button.disabled = true;
+  message(t("devices.probing"));
+  try {
+    const d = await call("POST", "/api/devices", { address: $("#new-address").value, name: $("#new-name").value });
+    ev.target.reset();
+    message(d.detected.open_ports.length ? t("devices.addedPorts", { name: d.name, ports: d.detected.open_ports.join(", ") }) : t("devices.addedSilent", { name: d.name }), "ok");
+    await reload();
+  } catch (e) { message(e.message, "error"); }
+  finally { button.disabled = false; }
+});
+
+$("#form-login").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  try {
+    await call("POST", "/api/login", { key: $("#key").value });
+    $("#key").value = "";
+    message("");
+    show(true); checkService();
+    await reload();
+  } catch (e) { message(e.message, "error"); }
+});
+
+$("#logout").addEventListener("click", async () => { await call("POST", "/api/logout").catch(() => {}); show(false); });
+
+reveal((async () => {
+  try {
+    const s = await call("GET", "/api/session");
+    show(s.ok);
+    if (s.ok) await reload();
+  } catch (e) { show(false); message(e.message, "error"); }
+})());
+</script>
+</body>
+</html>

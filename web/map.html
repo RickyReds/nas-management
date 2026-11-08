@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang = "en">
+<head>
+<meta charset = "utf-8">
+<meta name = "viewport" content = "width=device-width, initial-scale=1">
+<title data-i18n = "title.map">Map — NAS-Management</title>
+<meta name = "description" data-i18n-content = "meta.description" content = "Network drives, NAS status and credentials for a small Windows network.">
+<link rel = "icon" href = "icon.svg">
+<script src = "theme.js"></script>
+<link rel = "stylesheet" href = "style.css">
+<style>
+  :root { --line: #b9c0c9; --st-good: #0ca30c; --st-warn: #fab219; --st-critical: #d03b3b; --st-off: #8a919b; --gauge: #1f5fbf; --tall: 34px; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme = "light"]) { --line: #4a525c; --gauge: #6ea3f0; --st-off: #7a828c; } }
+  :root[data-theme = "dark"] { --line: #4a525c; --gauge: #6ea3f0; --st-off: #7a828c; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; font-size: 13px; color: var(--muted); }
+  .filters { display: flex; flex-wrap: wrap; gap: 16px; }
+
+  /* Horizontal tree: each node sits at the top of its branch, children on
+     the right. Lines: one horizontal stroke per branch, one vertical joining siblings. */
+  .nas { display: flex; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--border); }
+  .nas:first-of-type { border-top: 0; }
+  .branch { display: flex; align-items: flex-start; position: relative; }
+  .branches { display: flex; flex-direction: column; position: relative; }
+  .branches > .branch { padding-left: 24px; }
+  .branches > .branch::before { content: ""; position: absolute; left: 0; top: calc(var(--tall) / 2); width: 24px; border-top: 1px solid var(--line); }
+  .branches > .branch::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1px solid var(--line); }
+  .branches > .branch:first-child::after { top: calc(var(--tall) / 2); }
+  .branches > .branch:last-child::after { bottom: auto; height: calc(var(--tall) / 2); }
+  .branches > .branch:only-child::after { display: none; }
+  .branches > .branch + .branch { margin-top: 4px; }
+
+  .node { min-height: var(--tall); border: 1px solid var(--border); border-radius: 6px; background: var(--card); padding: 6px 10px; font-size: 13px; flex: none; }
+  .node.nas-node { width: 170px; }
+  .node.volume-node { width: 200px; }
+  .node.share-node { width: 210px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  /* Off: dashed border and grey text instead of transparency, which pushed
+     the small print under the AA contrast. */
+  .node.off { border-style: dashed; color: var(--muted); }
+  .node.off .dot, .node.off .gauge { opacity: .75; }
+  .node .ttl { font-weight: 600; }
+  .node .sub { color: var(--muted); font-size: 12px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: 0; }
+  .dot.on { background: var(--st-good); } .dot.booting { background: var(--st-warn); } .dot.off, .dot.unknown { background: var(--st-off); }
+  .gauge { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--gauge) 18%, transparent); overflow: hidden; margin-top: 4px; }
+  .gauge > span { display: block; height: 100%; border-radius: 3px; background: var(--gauge); }
+  .gauge.warn { background: color-mix(in srgb, var(--st-warn) 22%, transparent); } .gauge.warn > span { background: var(--st-warn); }
+  .gauge.critical { background: color-mix(in srgb, var(--st-critical) 18%, transparent); } .gauge.critical > span { background: var(--st-critical); }
+
+  .letters { display: flex; padding-left: 12px; min-height: var(--tall); align-items: center; }
+  .letters.muted { font-size: 13px; }
+
+  /* Grid on the right: one column per machine (then per profile), one row
+     per share. Cells always start at the same x: the tree has fixed widths
+     (NAS 170 + 24 + volume 200 + 24 + share 210). */
+  :root { --col: 92px; --grid-start: calc(170px + 24px + 200px + 24px + 210px + 12px); }
+  .cells { display: flex; margin-left: 12px; }
+  .cell { width: var(--col); min-height: var(--tall); flex: none; display: flex; align-items: center; justify-content: center; gap: 2px;
+    border-left: 1px solid var(--border); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cell:last-child { border-right: 1px solid var(--border); }
+  .cell.profile { background: color-mix(in srgb, var(--row) 60%, transparent); }
+  .cell .l.planned { border: 1.5px dashed var(--muted); border-radius: 4px; padding: 0 4px; font-weight: 500; }
+  /* Disconnected: grey text instead of transparency, which pushed the small
+     IP/name badge under the AA contrast; the user dot is faded. */
+  .cell .l.disconnected { color: var(--muted); font-weight: 400; }
+  .cell .l.disconnected .u { opacity: .55; }
+  .cell .sub-mark { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .branch:hover > .cells .cell { background: var(--row); }
+
+  .col-head { display: flex; position: sticky; top: 0; z-index: 2; background: var(--card); padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .col-head .spacer { width: var(--grid-start); flex: none; display: flex; align-items: end; font-size: 12px; color: var(--muted); }
+  .col-head .column { width: var(--col); flex: none; text-align: center; font-size: 12px; line-height: 1.25; padding: 0 4px; border-left: 1px solid transparent; overflow-wrap: anywhere; }
+  .col-head .column b { display: block; font-size: 12px; }
+  .col-head .column span { color: var(--muted); }
+  .col-head .column.profile b { font-weight: 500; border: 1.5px dashed var(--muted); border-radius: 4px; padding: 0 2px; }
+  /* The tree scrolls inside a box as tall as the window: the column header
+     row (sticky) stays in view and scrolls horizontally with the cells.
+     The height is computed by sizeBox(). */
+  /* Column of the PC the page is being viewed from */
+  .col-head .column.current { background: color-mix(in srgb, var(--accent) 22%, var(--card)); border: 2px solid var(--accent); border-bottom: 0; border-radius: 6px 6px 0 0; padding-top: 2px; }
+  .col-head .column.current b { color: var(--text); }
+  /* On the tinted background the grey small print falls under AA: full text colour. */
+  .col-head .column.current span:not([class]), .col-head .column.current .agent-ver:not(.old) { color: var(--text); }
+  .col-head .column .agent-ver { display: block; font-size: 10px; color: var(--muted); }
+  .col-head .column .agent-ver.old { color: var(--warn); font-weight: 700; }
+  .col-head .column .stopped { display: block; color: var(--error); font-weight: 700; font-size: 11px; }
+  .col-head .column .here { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text); }
+  .col-head .column .here.empty { visibility: hidden; }
+  .col-head .column .agent-ver, .col-head .column .stopped { white-space: nowrap; }
+  .col-head .column { border-top: 2px solid transparent; }
+  .cell.current { background: color-mix(in srgb, var(--accent) 9%, transparent); border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  .tree-box { overflow: auto; padding-bottom: 8px; overscroll-behavior: contain; }
+  #outside .letter { display: inline-flex; gap: 6px; align-items: baseline; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; font-size: 13px; }
+  #outside .letter .where { color: var(--muted); }
+  .sample-l { display: inline-block; font-weight: 600; padding: 0 4px; }
+  .sample-l.dashed { border: 1.5px dashed var(--muted); border-radius: 4px; font-weight: 500; }
+
+  /* Colour per NAS user: categorical palette in fixed order, checked for
+     contrast in light and dark mode. The colour sits on a mark next to the
+     letter, never on the text; the name is in the legend. */
+  :root { --u1: #2a78d6; --u2: #eb6834; --u3: #1baf7a; --u4: #eda100; --u5: #e87ba4; --u6: #008300; --u7: #6250d6; --u8: #e34948; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme = "light"]) { --u1: #3987e5; --u2: #d95926; --u3: #199e70; --u4: #c98500; --u5: #d55181; --u6: #008300; --u7: #9085e9; --u8: #e66767; } }
+  :root[data-theme = "dark"] { --u1: #3987e5; --u2: #d95926; --u3: #199e70; --u4: #c98500; --u5: #d55181; --u6: #008300; --u7: #9085e9; --u8: #e66767; }
+  .u { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 3px; flex: none; vertical-align: 0; }
+  .u.unknown { background: transparent !important; border: 1.5px solid var(--muted); }
+  .form { font-size: 10px; font-weight: 500; color: var(--muted); margin-left: 2px; letter-spacing: .02em; }
+  .form.ip { border: 1px solid var(--muted); border-radius: 3px; padding: 0 2px; }
+  #user-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 13px; margin: 0 0 8px; }
+  #user-legend .item { display: inline-flex; align-items: center; gap: 4px; }
+  #user-legend .n { color: var(--muted); font-size: 12px; }
+
+  /* Editable cells and pending changes */
+  .cell.editable { cursor: pointer; }
+  .cell.editable:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cell.editable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cell .l.pending { background: var(--highlight); border: 1.5px solid var(--accent); border-radius: 4px; padding: 0 3px; font-weight: 700; }
+  .sample-l.pending { background: var(--highlight); border: 1.5px solid var(--accent); border-radius: 4px; }
+  .cell-warning { color: var(--warn); font-weight: 600; margin-bottom: 4px; }
+  .pick-row { display: grid; gap: 4px; font-size: 13px; }
+  .pick-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pick { display: grid; gap: 1px; text-align: left; padding: 6px 12px; min-width: 120px;
+    background: color-mix(in srgb, var(--accent) 10%, var(--card)); border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+  .pick:hover { background: color-mix(in srgb, var(--accent) 22%, var(--card)); }
+  .pick .t { font-weight: 700; font-size: 14px; }
+  .pick .n { font-size: 11px; color: var(--muted); }
+  .pick.chosen { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .pick.chosen .n { color: inherit; opacity: .85; }
+  .pick.risky { border-color: var(--error); }
+  .pick .n.problem { color: var(--error); font-weight: 700; opacity: 1; }
+  .pick.chosen .n.problem { color: inherit; }
+  #cell-info { font-size: 13px; }
+  /* Free: solid and prominent. Taken: faded, struck through, dashed, with
+     the word. The difference is not only in the colour. */
+  .letter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 6px; }
+  .letter-grid button { padding: 6px 0 4px; font-weight: 700; font-size: 16px; line-height: 1.2; min-height: 48px;
+    color: var(--text); background: color-mix(in srgb, var(--accent) 14%, var(--card)); border: 1.5px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+  .letter-grid button:hover { background: color-mix(in srgb, var(--accent) 28%, var(--card)); }
+  .letter-grid button.taken { color: var(--muted); background: transparent; border: 1px dashed var(--border); font-weight: 400; opacity: .6; }
+  .letter-grid button.taken .l-text { text-decoration: line-through; }
+  .letter-grid button.taken:hover { opacity: .9; }
+  .letter-grid button.current { outline: 3px solid var(--text); outline-offset: 1px; }
+  .letter-grid button.chosen { background: var(--accent); color: var(--accent-text); border-color: var(--accent); opacity: 1; }
+  .letter-grid button.chosen .l-text { text-decoration: none; }
+  .letter-grid button .p, .letter-grid button .l-state { font-size: 10px; display: block; font-weight: 500; letter-spacing: .02em; }
+  .letter-grid button .p { color: var(--warn); }
+  .letter-grid button .l-state { color: inherit; opacity: .85; }
+  #pending-bar { position: sticky; bottom: 0; z-index: 5; background: var(--card); border-top: 2px solid var(--accent); padding: 10px 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .plan { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; }
+  .plan h3 { margin: 0 0 4px; }
+  .plan ul { margin: 0; padding-left: 20px; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NAS-Management</h1>
+  <nav>
+    <a href = "/status.html" data-i18n = "nav.status">Status</a>
+    <a href = "/map.html" aria-current = "page" data-i18n = "nav.map">Map</a>
+    <a href = "/" data-i18n = "nav.devices">Devices</a>
+    <a href = "/drives.html" data-i18n = "nav.drives">Network drives</a>
+    <a href = "/settings.html" data-i18n = "nav.settings">Settings</a>
+  </nav>
+  <button type = "button" onclick = "logout()" data-i18n = "common.logout">Log out</button>
+</header>
+
+<main aria-busy = "true">
+  <p id = "message" role = "status" aria-live = "polite"></p>
+  <section>
+    <div class = "row" style = "justify-content: space-between;">
+      <div class = "legend">
+        <span><span class = "sample-l">J:</span> <span data-i18n = "map.legendReal">letter the machine has now</span></span>
+        <span><span class = "sample-l dashed">J:</span> <span data-i18n = "map.legendPlanned">letter planned in a profile</span></span>
+        <span><span class = "sample-l">Z:<span class = "muted">↳</span></span> <span data-i18n = "map.legendSubfolder">points to a subfolder</span></span>
+        <span><span class = "sample-l pending">R→T</span> <span data-i18n = "map.legendPending">pending change: click a cell to change it</span></span>
+        <span data-i18n = "map.legendBar">bar = space used on the volume</span>
+      </div>
+      <div class = "filters">
+        <label class = "inline"><input type = "checkbox" id = "show-profiles"> <span data-i18n = "map.showProfiles">show profiles</span></label>
+        <label class = "inline"><input type = "checkbox" id = "only-letters" checked> <span data-i18n = "map.onlyLetters">only shares with letters</span></label>
+        <label class = "inline"><input type = "checkbox" id = "hide-system" checked> <span data-i18n = "map.hideSystem">hide QTS default shares</span></label>
+      </div>
+    </div>
+    <div id = "user-legend" data-i18n-aria-label = "map.nasUsers" aria-label = "NAS users"></div>
+    <p class = "muted" id = "note"></p>
+    <div class = "tree-box" id = "tree"></div>
+  </section>
+  <section id = "sec-outside" hidden>
+    <h2 data-i18n = "map.outsideTitle">Drives to servers not in the registry</h2>
+    <div id = "outside" class = "row"></div>
+  </section>
+</main>
+
+<div id = "pending-bar" hidden>
+  <strong id = "pending-count"></strong>
+  <button type = "button" class = "primary" id = "review" data-i18n = "map.review">Review and apply</button>
+  <button type = "button" id = "cancel-all" data-i18n = "map.cancelAll">Cancel all</button>
+  <span class = "muted" data-i18n = "map.nothingChanges">No machine changes until you apply.</span>
+</div>
+
+<dialog id = "dlg-cell">
+  <form method = "dialog" id = "form-cell">
+    <h2 id = "cell-title" data-i18n = "map.letter">Letter</h2>
+    <p id = "cell-sub" class = "muted" style = "margin: 0;"></p>
+    <div id = "cell-which"></div>
+    <div class = "letter-grid" id = "cell-letters"></div>
+    <p id = "cell-info" class = "muted" style = "margin: 0; min-height: 1.4em;"></p>
+    <div id = "cell-addr-row" class = "pick-row" hidden>
+      <div class = "muted" data-i18n = "map.addressInPath">NAS address in the path</div>
+      <div id = "cell-addr" class = "pick-buttons" role = "radiogroup" data-i18n-aria-label = "map.nasAddress" aria-label = "NAS address"></div>
+    </div>
+    <div id = "cell-cred-row" class = "pick-row" hidden>
+      <div class = "muted" data-i18n = "map.nasUserOne">NAS user (only one per address on this machine)</div>
+      <div id = "cell-cred" class = "pick-buttons" role = "radiogroup" data-i18n-aria-label = "map.nasUser" aria-label = "NAS user"></div>
+      <label id = "cell-rewrite-row" class = "inline" hidden><input type = "checkbox" id = "cell-rewrite"> <span data-i18n = "map.rewrite">write the password again into this machine's Credential Manager</span></label>
+      <div id = "cell-rewrite-note" class = "muted" hidden data-i18n = "map.rewriteNote">Needed when Windows asks for user and password (error 1223): the password saved on that PC is no longer valid. The agent replaces it with the one from the vault and then mounts.</div>
+    </div>
+    <div class = "buttons">
+      <button type = "button" id = "cell-remove" class = "danger" data-i18n = "map.removeLetter">Remove the letter</button>
+      <button type = "button" id = "cell-as-before" data-i18n = "map.reset" data-i18n-title = "map.resetTitle">Reset</button>
+      <button type = "button" id = "cell-undo" data-i18n = "map.undoChange">Undo the change</button>
+      <button type = "button" data-close data-i18n = "common.close">Close</button>
+      <button type = "submit" class = "primary" data-i18n = "map.setPending">Set as pending</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id = "dlg-plan" class = "wide">
+  <form method = "dialog">
+    <h2 data-i18n = "map.summaryTitle">Summary of the changes</h2>
+    <div id = "plan"></div>
+    <p class = "muted" data-i18n = "map.summaryNote">For each machine a job starts with the snapshot taken before, which can be restored from "Network drives → Jobs". Profiles are saved right away and touch no machine.</p>
+    <div class = "buttons">
+      <button type = "button" data-close data-i18n = "map.backToMap">Back to the map</button>
+      <button type = "button" class = "primary" id = "apply-plan" data-i18n = "common.apply">Apply</button>
+    </div>
+  </form>
+</dialog>
+
+<script src = "common.js"></script>
+<script>
+// Shares QTS creates by itself, usually not mapped.
+const SYSTEM_SHARES = new Set(["multimedia", "public", "web", "download", "recordings", "homes", "home", "container"]);
+const LETTERS = "DEFGHIJKLMNOPQRSTUVWXYZ".split("");
+let data = null;
+
+const columnSubtitle = c => (c.type === "profile" ? t("map.profile") : c.subtitle);
+
+// Visible columns: machines always, profiles if the switch is on.
+const columns = () => data.columns.filter(c => c.type === "machine" || $("#show-profiles").checked);
+
+// User colour: fixed position in the server's list (8 colours, then they
+// repeat, but the name is always in the legend and in the hover text).
+function userDot(user) {
+  if (!user) return el("span", { class: "u unknown", "aria-hidden": "true" });
+  const i = data.users.findIndex(u => u.toLowerCase() === user.toLowerCase());
+  return el("span", { class: "u", style: `background: var(--u${(i % 8) + 1})`, "aria-hidden": "true" });
+}
+
+function letterInCell(l, share) {
+  const who = l.user ? t("map.userIs", { user: l.user }) : (l.kind === "real" ? t("map.userUnknownReal") : t("map.userFromManager"));
+  const how = l.form === "ip" ? t("map.byIp") : l.form === "name" ? t("map.byName") : "";
+  const title = `${l.letter}: → ${share}${l.subfolder ? "\\" + l.subfolder : ""} · ${who}`
+    + (l.kind === "real"
+      ? ` · ${l.where}${l.via ? " · " + t("map.via", { via: l.via, how }) : ""}${l.status === "disconnected" ? " · " + t("map.disconnected") : ""}`
+      : " · " + t("map.plannedIn", { profile: l.where }));
+  return el("span", { class: `l ${l.kind}${l.status === "disconnected" ? " disconnected" : ""}`, title },
+    userDot(l.user), `${l.letter}:`,
+    l.subfolder ? el("span", { class: "sub-mark" }, "↳") : null,
+    l.form ? el("span", { class: `form ${l.form}` }, l.form === "ip" ? "IP" : t("map.formName")) : null);
+}
+
+function userLegend() {
+  const count = {};
+  let unknown = 0;
+  const visible = new Set(columns().map(c => c.id));
+  const all = data.tree.flatMap(n => [...n.volumes.flatMap(v => v.shares), ...n.others]).flatMap(c => c.letters).filter(l => visible.has(l.column));
+  for (const l of all) { if (l.user) count[l.user.toLowerCase()] = (count[l.user.toLowerCase()] || 0) + 1; else unknown++; }
+  $("#user-legend").replaceChildren(
+    el("span", { class: "muted" }, t("map.nasUserLabel")),
+    ...data.users.map(u => el("span", { class: "item" }, userDot(u), u, el("span", { class: "n" }, t("map.drivesCount", { n: count[u.toLowerCase()] || 0 })))),
+    el("span", { class: "item" }, userDot(null), t("map.unknownUser"), el("span", { class: "n" }, t("map.drivesCount", { n: unknown }))),
+    el("span", { class: "item" }, el("span", { class: "form" }, t("map.formName")), t("map.mountedByName")),
+    el("span", { class: "item" }, el("span", { class: "form ip" }, "IP"), t("map.mountedByIp")));
+}
+
+// --------------------------------------------------------- pending changes
+
+const pending = new Map();
+const pendingKey = (col, dev, share, sub, old) => [col, dev, share.toLowerCase(), (sub || "").toLowerCase(), old || "+"].join("|");
+const devName = id => ((data.tree.find(n => n.id === id) || {}).name) || id;
+
+function editable(col) {
+  return col.type === "profile" || col.managed !== false;
+}
+
+// Letters taken in the column, taking the pending changes into account.
+function effectiveOccupied(col) {
+  const occ = { ...(col.occupied || {}) };
+  for (const s of pending.values()) if (s.column === col.id && s.old) delete occ[s.old];
+  for (const s of pending.values()) if (s.column === col.id && s.new) occ[s.new] = `${devName(s.device)}\\${s.share} (${t("map.pendingWord")})`;
+  return occ;
+}
+
+function updateBar() {
+  const n = pending.size;
+  $("#pending-bar").hidden = !n;
+  $("#pending-count").textContent = t(n === 1 ? "map.pendingOne" : "map.pendingMany", { n });
+}
+
+function cellFor(col, c, devId) {
+  const letters = c.letters.filter(l => l.column === col.id);
+  const content = letters.map(l => {
+    const s = pending.get(pendingKey(col.id, devId, c.name, l.subfolder, l.letter));
+    if (!s) return letterInCell(l, c.name);
+    const via = s.address ? " " + t("map.viaAddress", { address: s.address }) : "";
+    if (s.new === l.letter) {
+      const who = s.credential ? (data.credentials.find(k => k.id === s.credential) || {}).user : null;
+      return el("span", { class: "l pending", title: t("map.pendingRemount", { letter: l.letter, via, user: who ? " " + t("map.withUser", { user: who }) : "" }) }, `${l.letter}↻`);
+    }
+    return el("span", { class: "l pending", title: t("map.pendingMove", { letter: l.letter, to: s.new ? s.new + ":" : t("map.removedWord"), via }) }, `${l.letter}→${s.new || "✕"}`);
+  });
+  for (const s of pending.values()) {
+    if (s.column === col.id && !s.old && s.device === devId && s.share.toLowerCase() === c.name.toLowerCase()) {
+      content.push(el("span", { class: "l pending", title: t("map.pendingNew", { letter: s.new }) }, `+${s.new}`));
+    }
+  }
+  const can = editable(col);
+  // The button's name is its content: column and share go in hidden text
+  // before the letters, so what a screen reader says contains what is seen.
+  const context = can ? el("span", { class: "sr-only" }, `${col.title} ${columnSubtitle(col)}, ${c.name}: ${content.length ? "" : t("map.noLetter")}`) : null;
+  return el("div", {
+    class: `cell ${col.type}${col.current ? " current" : ""}${can ? " editable" : ""}`,
+    tabindex: can ? 0 : null, role: can ? "button" : null,
+    title: can ? null : t("map.notManaged"),
+    onclick: can ? () => openCell(col, c, devId, letters) : null,
+    onkeydown: can ? ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openCell(col, c, devId, letters); } } : null,
+  }, context, ...content);
+}
+
+const cell = { col: null, c: null, dev: null, letters: [], old: null, chosen: null, address: null, addressOrig: null };
+
+// Address the letter is mounted with now (or the one proposed for a new one).
+function currentAddress() {
+  const { col, dev, letters } = cell;
+  if (col.type !== "machine") return null;
+  const l = letters.find(x => x.letter === cell.old);
+  return (l && l.via) || (col.addresses || {})[dev] || null;
+}
+const addressChanged = () => Boolean(cell.address && cell.addressOrig && cell.address.toLowerCase() !== cell.addressOrig.toLowerCase());
+
+// A button in a choice row (address or user): only one is selected.
+function pickButton(chosen, action, title, note, note2, problem) {
+  return el("button", { type: "button", role: "radio", "aria-checked": chosen ? "true" : "false", class: `pick${chosen ? " chosen" : ""}${problem ? " risky" : ""}`, onclick: action },
+    el("span", { class: "t" }, title),
+    note ? el("span", { class: "n" }, note) : null,
+    note2 ? el("span", { class: "n" }, note2) : null,
+    problem ? el("span", { class: "n problem" }, `⚠ ${problem}`) : null);
+}
+
+// How the column's PC resolves a NAS name (reported by the agent).
+// null: no known problem; otherwise the reason the name does not work.
+function nameProblem(col, dev, address) {
+  if (!address || isIp(address)) return null;
+  const r = (col.resolutions || {})[address.toLowerCase()];
+  if (!r) return null;
+  if (!r.length) return t("map.nameNotResolved");
+  if (r.some(ip => ip.startsWith("127."))) return t("map.namePointsToSelf", { ip: r[0] });
+  const nas = data.tree.find(n => n.id === dev);
+  const own = nas ? nas.addresses.filter(isIp) : [];
+  if (own.length && !r.some(ip => own.includes(ip))) return t("map.namePointsElsewhere", { ips: r.join(", ") });
+  return null;
+}
+
+// User the machine's Credential Manager has for the address chosen in the cell.
+function managerUser() {
+  if (cell.col.type !== "machine" || !cell.address) return null;
+  return (cell.col.manager_users || {})[cell.address.toLowerCase()] || null;
+}
+// The vault credential matching the Credential Manager's user for the chosen address.
+function managerCredential() {
+  const g = managerUser();
+  if (!g) return null;
+  return data.credentials.find(k => k.user.toLowerCase() === g.toLowerCase() && k.devices.includes(cell.dev) && k.has_password) || null;
+}
+function userChanged() {
+  const g = managerUser();
+  const k = cell.credential && data.credentials.find(x => x.id === cell.credential);
+  return Boolean(g && k && k.user.toLowerCase() !== g.toLowerCase());
+}
+// The machine's other letters going through the same address.
+function otherLettersOnAddress() {
+  const addr = (cell.address || "").toLowerCase();
+  return Object.entries(cell.col.occupied || {})
+    .filter(([L, p]) => L !== cell.old && String(p).toLowerCase().startsWith(`\\\\${addr}\\`))
+    .map(([L]) => `${L}:`).sort();
+}
+
+function drawCell() {
+  const { col, c, dev, letters } = cell;
+  const occ = effectiveOccupied(col);
+  const oldEntry = letters.find(l => l.letter === cell.old);
+  const sub = oldEntry ? oldEntry.subfolder : "";
+  const s = pending.get(pendingKey(col.id, dev, c.name, sub, cell.old));
+  $("#cell-which").replaceChildren(...(letters.length > 1 ? [el("div", { class: "choices" }, el("span", { class: "muted" }, t("map.letterToChange")),
+    ...letters.map(l => el("label", null, el("input", { type: "radio", name: "which", value: l.letter, checked: l.letter === cell.old,
+      onchange: () => { cell.old = l.letter; cell.chosen = null; cell.addressOrig = cell.address = currentAddress(); drawCell(); } }), `${l.letter}:${l.subfolder ? " ↳ " + l.subfolder : ""}`)))] : []));
+  // Address: machines only; profiles use the machine's.
+  $("#cell-addr-row").hidden = col.type !== "machine";
+  if (col.type === "machine") {
+    const nas = data.tree.find(n => n.id === dev);
+    const list = [...new Set([...(nas ? nas.addresses : []), cell.addressOrig].filter(Boolean))];
+    $("#cell-addr").replaceChildren(...list.map(a => {
+      const chosen = a.toLowerCase() === (cell.address || "").toLowerCase();
+      const g = (col.manager_users || {})[a.toLowerCase()];
+      const note = [isIp(a) ? "IP" : t("map.formName"), a === cell.addressOrig ? (cell.old ? t("map.current") : t("map.proposed")) : null].filter(Boolean).join(" · ");
+      return pickButton(chosen, () => { cell.address = a; cell.credential = ""; drawCell(); },
+        a, note, g ? t("map.managerHas", { user: g }) : t("map.managerNone"), nameProblem(col, dev, a));
+    }));
+  }
+  $("#cell-letters").replaceChildren(...LETTERS.map(L => {
+    const current = L === cell.old;
+    const taken = !current && occ[L];
+    const prot = (col.protected || []).includes(L);
+    const chosen = cell.chosen === L;
+    return el("button", {
+      type: "button", class: [taken ? "taken" : "", current ? "current" : "", chosen ? "chosen" : ""].join(" "),
+      title: current ? t("map.currentLetter") : taken ? t("map.takenBy", { path: occ[L] }) : prot ? t("map.protectedLetter") : t("map.free"),
+      onclick: () => { cell.chosen = current ? null : L; drawCell(); },
+    }, el("span", { class: "l-text" }, `${L}:`),
+      current ? el("span", { class: "l-state" }, t("map.current")) : taken ? el("span", { class: "l-state" }, t("map.taken")) : null,
+      prot ? el("span", { class: "p" }, t("map.protected")) : null);
+  }));
+  // User: always visible for machines. It starts from the one the Credential
+  // Manager has for the chosen address; if there is none, one must be chosen.
+  $("#cell-cred-row").hidden = col.type !== "machine";
+  const mgrCred = managerCredential();
+  const canRewrite = col.type === "machine" && !userChanged() && Boolean(mgrCred);
+  if (!canRewrite) cell.rewrite = false;
+  $("#cell-rewrite-row").hidden = !canRewrite;
+  $("#cell-rewrite-note").hidden = !canRewrite;
+  $("#cell-rewrite").checked = Boolean(cell.rewrite);
+  if (col.type === "machine") {
+    const g = managerUser();
+    const valid = data.credentials.filter(k => k.devices.includes(dev) && k.has_password);
+    if (!g && !cell.credential && valid.length) cell.credential = valid[0].id;
+    // The user the Credential Manager already has counts as "as now": choosing it changes nothing.
+    const inVault = g && valid.some(k => k.user.toLowerCase() === g.toLowerCase());
+    $("#cell-cred").replaceChildren(
+      ...(g && !inVault ? [pickButton(!cell.credential, () => { cell.credential = ""; drawCell(); }, g, t("map.asNow"), t("map.notInVault"))] : []),
+      ...valid.map(k => {
+        const same = g && k.user.toLowerCase() === g.toLowerCase();
+        const chosen = same ? (!cell.credential || cell.credential === k.id) : cell.credential === k.id;
+        return pickButton(chosen, () => { cell.credential = same ? "" : k.id; drawCell(); },
+          k.user, same ? t("map.asNow") : (k.role || ""), null);
+      }));
+  }
+  const info = [], warnings = [];
+  if (userChanged()) {
+    const newUser = data.credentials.find(k => k.id === cell.credential).user;
+    const others = otherLettersOnAddress();
+    warnings.push(t(others.length ? "map.warnUserChangeOthers" : "map.warnUserChange", { address: cell.address, from: managerUser(), to: newUser, letters: others.join(", ") }));
+  }
+  if (cell.chosen && occ[cell.chosen]) warnings.push(t("map.warnReplaced", { letter: cell.chosen, path: occ[cell.chosen] }));
+  if (cell.chosen && (col.protected || []).includes(cell.chosen)) warnings.push(t("map.warnProtected", { letter: cell.chosen }));
+  // Name and IP are two servers for Windows, each with its own user: moving
+  // to an address uses the user that address already has on the machine.
+  const problem = col.type === "machine" ? nameProblem(col, dev, cell.address) : null;
+  if (problem) {
+    const nas = data.tree.find(n => n.id === dev);
+    const ip = nas ? nas.addresses.find(isIp) : null;
+    warnings.push(t(ip ? "map.warnNameProblemIp" : "map.warnNameProblem", { address: cell.address, problem, ip }));
+  }
+  if (addressChanged() && !userChanged()) {
+    const g = managerUser();
+    const others = otherLettersOnAddress();
+    warnings.push(t("map.warnRemountVia", { address: cell.address, before: cell.addressOrig }) + " "
+      + (g ? t(others.length ? "map.warnSameUserOthers" : "map.warnSameUser", { address: cell.address, user: g, letters: others.join(", ") })
+           : t("map.warnNoUserYet", { address: cell.address })));
+  }
+  if (s) info.push(t("map.pendingInfo", { from: cell.old ? cell.old + ": → " : "", to: s.new ? s.new + ":" : t("map.removedWord"), via: s.address ? " " + t("map.viaAddress", { address: s.address }) : "" }));
+  // Warnings in orange with the symbol, information in grey.
+  $("#cell-info").replaceChildren(
+    ...warnings.map(a => el("div", { class: "cell-warning" }, "⚠ ", a)),
+    ...info.map(i => el("div", null, i)));
+  $("#cell-remove").hidden = !cell.old;
+  $("#cell-undo").hidden = !s;
+  const i = cell.initial || {};
+  $("#cell-as-before").disabled = ["old", "chosen", "address", "credential", "rewrite"].every(k => (i[k] || "") === (cell[k] || ""));
+}
+
+$("#cell-rewrite").addEventListener("change", ev => { cell.rewrite = ev.target.checked; drawCell(); });
+$("#cell-as-before").addEventListener("click", () => {
+  Object.assign(cell, cell.initial);
+  drawCell();
+});
+
+function openCell(col, c, dev, letters) {
+  const first = letters[0];
+  Object.assign(cell, { col, c, dev, letters, old: first ? first.letter : null, chosen: null });
+  cell.addressOrig = currentAddress();
+  cell.address = cell.addressOrig;
+  const s = pending.get(pendingKey(col.id, dev, c.name, first ? first.subfolder : "", cell.old));
+  if (s && s.new && s.new !== cell.old) cell.chosen = s.new;
+  if (s && s.address) cell.address = s.address;
+  cell.credential = s ? (s.credential || "") : "";
+  cell.rewrite = Boolean(s && s.rewrite);
+  // As it was when opened: "Reset" goes back here.
+  cell.initial = { old: cell.old, chosen: cell.chosen, address: cell.address, addressOrig: cell.addressOrig, credential: cell.credential, rewrite: cell.rewrite };
+  $("#cell-title").textContent = `${col.title}${col.type === "machine" ? " · " + col.subtitle : " (" + t("map.profile") + ")"}`;
+  $("#cell-sub").textContent = `${devName(dev)} \\ ${c.name}${first && first.subfolder ? " \\ " + first.subfolder : ""}`;
+  drawCell();
+  $("#dlg-cell").showModal();
+}
+
+function savePending(newLetter) {
+  const { col, c, dev, letters } = cell;
+  const entry = letters.find(l => l.letter === cell.old);
+  const sub = entry ? entry.subfolder : "";
+  const k = pendingKey(col.id, dev, c.name, sub, cell.old);
+  if (!cell.old && !newLetter) { pending.delete(k); return; }
+  if (cell.old && newLetter === cell.old && !addressChanged() && !userChanged() && !cell.rewrite) { pending.delete(k); return; }
+  const m = { column: col.id, device: dev, share: c.name, subfolder: sub, old: cell.old, new: newLetter || null, credential: null };
+  // The address is sent only when needed: new letter or changed address.
+  if (col.type === "machine" && newLetter && cell.address && (!cell.old || addressChanged())) m.address = cell.address;
+  if (col.type === "machine" && newLetter) {
+    // "as now" sends no credential: the Credential Manager's stays.
+    m.credential = userChanged() || !managerUser() ? (cell.credential || null) : null;
+    // "rewrite": same user, but the vault's password is written into the PC's Credential Manager.
+    if (cell.rewrite && !m.credential) { const g = managerCredential(); if (g) { m.credential = g.id; m.rewrite = true; } }
+    if (!m.credential && !managerUser()) throw new Error(t("map.chooseUser"));
+  }
+  pending.set(k, m);
+}
+
+$("#form-cell").addEventListener("submit", ev => {
+  ev.preventDefault();
+  // Only the address changed: the letter stays the same and is mounted again.
+  const newLetter = cell.chosen || (cell.old && (addressChanged() || userChanged() || cell.rewrite) ? cell.old : null);
+  if (!newLetter) { $("#cell-info").replaceChildren(el("div", { class: "cell-warning" }, "⚠ ", t("map.chooseSomething"))); return; }
+  try { savePending(newLetter); } catch (e) { $("#cell-info").replaceChildren(el("div", { class: "cell-warning" }, "⚠ ", e.message)); return; }
+  $("#dlg-cell").close(); updateBar(); draw();
+});
+$("#cell-remove").addEventListener("click", () => { savePending(null); $("#dlg-cell").close(); updateBar(); draw(); });
+$("#cell-undo").addEventListener("click", () => {
+  const entry = cell.letters.find(l => l.letter === cell.old);
+  pending.delete(pendingKey(cell.col.id, cell.dev, cell.c.name, entry ? entry.subfolder : "", cell.old));
+  $("#dlg-cell").close(); updateBar(); draw();
+});
+$("#cancel-all").addEventListener("click", () => {
+  if (!confirm(t("map.confirmCancelAll"))) return;
+  pending.clear(); updateBar(); draw();
+});
+
+// Summary per letter, from where to where: the agent runs all "remove"
+// first and then the "mount", but here a letter removed and mounted again is one line.
+function userText(before, after) {
+  if (before && after && before.toLowerCase() !== after.toLowerCase()) return el("strong", null, " · " + t("map.userFromTo", { from: before, to: after }));
+  return " · " + t("map.userIs", { user: after || before || t("map.unknownWord") });
+}
+
+function summaryRows(ops) {
+  const removes = ops.filter(o => o.action === "remove");
+  const used = new Set();
+  const rows = [];
+  // When the agent writes a password into the PC's Credential Manager, the summary says so.
+  const pwdNote = op => op.credential ? " · " + t("map.writesPassword", { user: op.user || "?", server: (op.path.split("\\")[2]) || "?" }) : "";
+  for (const op of ops.filter(o => o.action !== "remove")) {
+    // same letter removed and mounted again (change of path, address or user)
+    let r = removes.find(x => x.letter === op.letter && !used.has(x));
+    if (r) {
+      used.add(r);
+      rows.push([`${op.letter}: ${r.old || "?"} → ${op.path}`, userText(r.user_before, op.user), pwdNote(op)]);
+      continue;
+    }
+    // same share changing letter
+    r = removes.find(x => !used.has(x) && x.old && x.old.toLowerCase() === op.path.toLowerCase());
+    if (r) {
+      used.add(r);
+      rows.push([`${r.letter}: → ${op.letter}:  ${op.path}`, userText(r.user_before, op.user),
+        op.old ? " · " + t("map.replaces", { path: op.old }) : "", pwdNote(op)]);
+      continue;
+    }
+    rows.push([op.old ? t("map.rowReplaced", { letter: op.letter, old: op.old, path: op.path }) : t("map.rowNew", { letter: op.letter, path: op.path }),
+      userText(op.old ? op.user_before : null, op.user), pwdNote(op)]);
+  }
+  for (const r of removes) if (!used.has(r)) rows.push([t("map.rowRemoves", { letter: r.letter, old: r.old || "" }), r.user_before ? " · " + t("map.wasWith", { user: r.user_before }) : ""]);
+  return rows;
+}
+
+$("#review").addEventListener("click", async () => {
+  try {
+    const plans = await call("POST", "/api/map/plan", { changes: [...pending.values()] });
+    $("#plan").replaceChildren(...plans.map(p => el("div", { class: "plan" },
+      el("h3", null, p.title, el("span", { class: "muted" }, p.type === "profile" ? " · " + t("map.profile") : "")),
+      el("ul", null, ...(p.type === "profile" ? p.changes.map(x => [msg(x)]) : summaryRows(p.operations)).map(r => el("li", null, ...r))),
+      p.type === "machine" && p.operations.length ? el("details", null, el("summary", { class: "muted" }, t("map.executionOrder", { n: p.operations.length })),
+        el("ol", { class: "muted" }, ...p.operations.map(o => el("li", null, `${t("action." + o.action)} ${o.letter}: ${o.path || o.old || ""}`)))) : null,
+      p.warnings.length ? el("ul", { class: "warnings" }, ...p.warnings.map(x => el("li", null, msg(x)))) : null)));
+    $("#dlg-plan").showModal();
+  } catch (e) { message(e.message, "error"); }
+});
+
+$("#apply-plan").addEventListener("click", async () => {
+  try {
+    const r = await call("POST", "/api/map/apply", { changes: [...pending.values()] });
+    $("#dlg-plan").close();
+    pending.clear(); updateBar();
+    const title = id => (data.columns.find(c => c.id === id) || { title: id }).title;
+    message(r.map(x => `${title(x.column)}: ${msg(x.outcome)}`).join(" · "), "ok");
+    await reload();
+    const queued = r.filter(x => x.job).map(x => ({ id: x.job, title: title(x.column) }));
+    if (queued.length) followJobs(queued);
+  } catch (e) { message(e.message, "error"); }
+});
+
+// After "Apply" the jobs are only queued: the agent picks them up within a
+// minute. They are checked every 3 seconds and the map redraws when done.
+async function followJobs(expected) {
+  const start = Date.now();
+  const DONE = ["completed", "completed_with_errors", "cancelled"];
+  while (Date.now() - start < 2 * 60 * 1000) {
+    let jobs;
+    try { jobs = await call("GET", "/api/jobs"); } catch { return; }
+    const state = expected.map(a => ({ ...a, j: jobs.find(x => x.id === a.id) }));
+    const open = state.filter(s => s.j && !DONE.includes(s.j.status));
+    if (!open.length) {
+      await reload();
+      const text = state.map(s => {
+        if (!s.j) return t("map.jobNotFound", { title: s.title });
+        const errors = s.j.operations.filter(o => o.status !== "ok");
+        return s.j.status === "completed" ? t("map.jobDone", { title: s.title })
+          : s.j.status === "cancelled" ? t("map.jobCancelled", { title: s.title })
+          : t("map.jobErrors", { title: s.title, errors: errors.map(o => `${o.letter}: ${msg(o.message) || t("opStatus." + o.status)}`).join("; ") });
+      }).join(" · ");
+      message(text, state.every(s => s.j && s.j.status === "completed") ? "ok" : "error");
+      return;
+    }
+    message(t("map.waitingAgent", { names: open.map(s => s.title).join(", ") }));
+    await new Promise(r => setTimeout(r, 3000));
+  }
+  message(t("map.agentNotYet"), "warn");
+  reload().catch(() => {});
+}
+
+function shareBranch(c, devId) {
+  const cols = columns();
+  return el("div", { class: "branch" },
+    el("div", { class: "node share-node", title: c.used_bytes != null ? t("map.usedBytes", { size: bytes(c.used_bytes, 0) }) : "" },
+      el("span", { class: "ttl" }, c.name),
+      c.used_bytes != null ? el("span", { class: "sub" }, bytes(c.used_bytes, 0)) : null),
+    cols.length ? el("div", { class: "cells" }, ...cols.map(col => cellFor(col, c, devId))) : null);
+}
+
+function filter(shares) {
+  const only = $("#only-letters").checked, system = $("#hide-system").checked;
+  const ids = new Set(columns().map(c => c.id));
+  return shares.filter(c => {
+    const withLetters = c.letters.some(l => ids.has(l.column));
+    return (!only || withLetters) && (!system || withLetters || !SYSTEM_SHARES.has(c.name.toLowerCase()));
+  });
+}
+
+function columnHeader() {
+  const cols = columns();
+  if (!cols.length) return null;
+  return el("div", { class: "col-head" },
+    el("div", { class: "spacer" }, t("map.treeHeader")),
+    ...cols.map(c => el("div", { class: `column ${c.type}${c.current ? " current" : ""}`,
+      title: c.type === "machine" ? `${c.title} · ${c.subtitle}${c.managed === false ? " (" + t("map.notManaged") + ")" : ""}${c.current ? " · " + t("map.youAreHere") : ""}` : `${t("map.profile")} ${c.title}` },
+      // The "this PC" line is in every column (empty in the others): so the names stay aligned.
+      el("span", { class: `here${c.current ? "" : " empty"}`, "aria-hidden": c.current ? null : "true" }, t("map.thisPc")),
+      el("b", null, c.title), el("span", null, columnSubtitle(c)),
+      c.type === "machine" && c.agent_version ? (c.agent_version === data.current_agent
+        ? el("span", { class: "agent-ver" }, t("map.agentVersion", { version: c.agent_version }))
+        : el("span", { class: "agent-ver old", title: t("map.agentOld", { version: c.agent_version, current: data.current_agent }) }, `${c.agent_version} → ${data.current_agent}`)) : null,
+      c.type === "machine" && !c.online ? el("span", { class: "stopped" }, "⚠ " + t("map.stopped")) : null)));
+}
+
+function volumeBranch(v, off, devId) {
+  const pct = v.total_bytes && v.free_bytes != null ? Math.round((1 - v.free_bytes / v.total_bytes) * 100) : null;
+  const cls = pct == null ? "" : pct >= 95 ? "critical" : pct >= 85 ? "warn" : "";
+  const shares = filter(v.shares);
+  return el("div", { class: "branch" },
+    el("div", { class: `node volume-node${off ? " off" : ""}` },
+      el("div", null, el("span", { class: "ttl" }, v.name), el("span", { class: "sub" }, ` ${v.type}`)),
+      pct == null ? null : el("div", { class: "sub" }, t("map.volumeSpace", { pct, free: bytes(v.free_bytes, 0), total: bytes(v.total_bytes, 0) }) + (cls === "critical" ? " · ⚠ " + t("map.almostFull") : "")),
+      pct == null ? null : el("div", { class: `gauge ${cls}`, role: "meter", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct, "aria-label": t("map.volumeUsed", { name: v.name, pct }) },
+        el("span", { style: `width: ${pct}%` }))),
+    shares.length ? el("div", { class: "branches" }, ...shares.map(c => shareBranch(c, devId))) : el("div", { class: "letters muted" }, t("map.noSharesToShow")));
+}
+
+function nasBranch(n) {
+  const off = n.status !== "on";
+  const children = n.volumes.map(v => volumeBranch(v, off, n.id));
+  const others = filter(n.others);
+  if (others.length) {
+    children.push(el("div", { class: "branch" },
+      el("div", { class: "node volume-node off" }, el("span", { class: "ttl" }, t("map.volumeUnread")), el("div", { class: "sub" }, t("map.volumeUnreadNote"))),
+      el("div", { class: "branches" }, ...others.map(c => shareBranch(c, n.id)))));
+  }
+  return el("div", { class: "nas" },
+    el("div", { class: `node nas-node${off ? " off" : ""}` },
+      el("div", null, el("span", { class: `dot ${n.status}`, "aria-hidden": "true" }), el("span", { class: "ttl" }, n.name)),
+      el("div", { class: "sub" }, `${n.model || ""} · ${n.address}`),
+      el("div", { class: "sub" }, t(`state.${n.status}`)),
+      n.structure_read ? el("div", { class: "sub" }, t("map.structureRead", { when: ago(n.structure_read) })) : el("div", { class: "sub" }, t("map.structureNever"))),
+    children.length ? el("div", { class: "branches" }, ...children) : el("div", { class: "letters muted" }, t("map.volumesNotRead")));
+}
+
+function draw() {
+  $("#tree").replaceChildren(...[columnHeader(), ...data.tree.map(nasBranch)].filter(Boolean));
+  userLegend();
+  $("#note").textContent = data.machines ? "" : t("map.noMachines");
+  $("#sec-outside").hidden = !data.outside.length;
+  $("#outside").replaceChildren(...data.outside.map(l => el("span", { class: "letter", title: l.path }, el("b", null, `${l.letter}:`), el("span", { class: "where" }, `${l.where} → ${l.path}`))));
+}
+
+async function reload() {
+  const r = $("#tree");
+  const position = [r.scrollTop, r.scrollLeft];
+  data = await call("GET", "/api/map");
+  draw();
+  // The automatic refresh must not bring the box back to the top.
+  [r.scrollTop, r.scrollLeft] = position;
+  sizeBox();
+}
+
+// The box reaches the bottom of the window, minus the pending bar if shown.
+function sizeBox() {
+  const r = $("#tree");
+  const bar = $("#pending-bar");
+  const below = bar.hidden ? 0 : bar.offsetHeight;
+  const top = r.getBoundingClientRect().top + window.scrollY; // position in the page, with the page at the top
+  const tall = Math.max(320, window.innerHeight - top - below - 24);
+  r.style.maxHeight = `${tall}px`;
+}
+window.addEventListener("resize", sizeBox);
+new MutationObserver(sizeBox).observe($("#pending-bar"), { attributes: true, attributeFilter: ["hidden"] });
+new MutationObserver(sizeBox).observe($("#note"), { childList: true, characterData: true, subtree: true });
+
+// The filters are remembered in this browser. If the browser does not allow
+// it (private window, site data blocked) the HTML defaults apply.
+const FILTERS = ["show-profiles", "only-letters", "hide-system"];
+const FILTERS_KEY = "nasm.map.filters";
+try {
+  const saved = JSON.parse(localStorage.getItem(FILTERS_KEY) || "{}");
+  for (const id of FILTERS) if (typeof saved[id] === "boolean") $("#" + id).checked = saved[id];
+} catch { }
+function saveFilters() {
+  try { localStorage.setItem(FILTERS_KEY, JSON.stringify(Object.fromEntries(FILTERS.map(id => [id, $("#" + id).checked])))); } catch { }
+}
+for (const id of FILTERS) $("#" + id).addEventListener("change", () => { saveFilters(); draw(); });
+setInterval(() => { if (!document.hidden && !document.querySelector("dialog[open]")) reload().catch(() => {}); }, 30000);
+window.addEventListener("beforeunload", ev => { if (pending.size) { ev.preventDefault(); ev.returnValue = ""; } });
+// The box size needs the content visible: sizeBox() runs right after reveal.
+reveal(reload().catch(e => message(e.message, "error")), sizeBox);
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# Installation data: vault, registry, logs. Never committed.
+data/
+# Data folder of the Italian versions (up to 0.5.x), kept after the migration.
+dati/

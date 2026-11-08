@@ -1,0 +1,14 @@
+{
+  "name": "nas-management",
+  "version": "0.7.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Network drives, NAS status and encrypted credentials for a small Windows network with QNAP NAS units.",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/server.js",
+    "key": "node src/cli.js key",
+    "check-i18n": "node scripts/check-i18n.js"
+  }
+}

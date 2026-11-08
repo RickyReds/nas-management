@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang = "en">
+<head>
+<meta charset = "utf-8">
+<meta name = "viewport" content = "width=device-width, initial-scale=1">
+<title data-i18n = "title.status">Status — NAS-Management</title>
+<meta name = "description" data-i18n-content = "meta.description" content = "Network drives, NAS status and credentials for a small Windows network.">
+<link rel = "icon" href = "icon.svg">
+<script src = "theme.js"></script>
+<link rel = "stylesheet" href = "style.css">
+<style>
+  :root { --st-good: #0ca30c; --st-warn: #fab219; --st-critical: #d03b3b; --st-off: #8a919b; --gauge: #1f5fbf; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme = "light"]) { --gauge: #6ea3f0; --st-off: #7a828c; } }
+  :root[data-theme = "dark"] { --gauge: #6ea3f0; --st-off: #7a828c; }
+  /* Each card spans 9 grid rows (subgrid): the same section has the same
+     height in all the cards of a row, that of the tallest one. */
+  .grid { display: grid; column-gap: 16px; row-gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); }
+  .dev-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; min-width: 0;
+    display: grid; grid-row: span 9; grid-template-rows: subgrid; row-gap: 0; }
+  .dev-card > .part { min-width: 0; }
+  .dev-card > .part:not(:empty):not(:last-child) { padding-bottom: 12px; }
+  .dev-card > .part.buttons { align-self: end; justify-content: flex-start; }
+  .part.volumes { display: grid; gap: 10px; align-content: start; }
+  .head { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+  .head h2 { margin: 0; }
+  .state { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .state .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .state.on .dot { background: var(--st-good); }
+  .state.booting .dot { background: var(--st-warn); }
+  .state.off .dot, .state.unknown .dot { background: var(--st-off); }
+  .numbers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .number { display: grid; gap: 2px; }
+  .number .label { font-size: 12px; color: var(--muted); }
+  .number .value { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .volume { display: grid; gap: 4px; }
+  .volume .text-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .gauge { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--gauge) 18%, transparent); overflow: hidden; }
+  .gauge > span { display: block; height: 100%; border-radius: 4px; background: var(--gauge); }
+  .gauge.warn { background: color-mix(in srgb, var(--st-warn) 22%, transparent); }
+  .gauge.warn > span { background: var(--st-warn); }
+  .gauge.critical { background: color-mix(in srgb, var(--st-critical) 18%, transparent); }
+  .gauge.critical > span { background: var(--st-critical); }
+  .flag { font-size: 13px; }
+  .flag::before { content: "⚠ "; }
+  table.compact th, table.compact td { padding: 4px 6px; font-size: 13px; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>NAS-Management</h1>
+  <nav>
+    <a href = "/status.html" aria-current = "page" data-i18n = "nav.status">Status</a>
+    <a href = "/map.html" data-i18n = "nav.map">Map</a>
+    <a href = "/" data-i18n = "nav.devices">Devices</a>
+    <a href = "/drives.html" data-i18n = "nav.drives">Network drives</a>
+    <a href = "/settings.html" data-i18n = "nav.settings">Settings</a>
+  </nav>
+  <button type = "button" onclick = "logout()" data-i18n = "common.logout">Log out</button>
+</header>
+
+<main aria-busy = "true">
+  <p id = "message" role = "status" aria-live = "polite"></p>
+  <p class = "muted"><span data-i18n = "status.intro1">On or off is checked every minute, without logging in. The metrics of QNAPs that are on are read every 15 minutes with the read-only account, or when you press "Refresh now".</span><br><span data-i18n = "status.intro2">A device that is off is not an error.</span></p>
+  <div class = "grid" id = "grid"></div>
+</main>
+
+<script src = "common.js"></script>
+<script>
+const stateText = s => t(`state.${s}`);
+
+function number(label, value) {
+  return el("div", { class: "number" }, el("span", { class: "label" }, label), el("span", { class: "value" }, value));
+}
+
+function volume(v) {
+  const used = v.total_bytes && v.free_bytes != null ? (v.total_bytes - v.free_bytes) / v.total_bytes : null;
+  const pct = used == null ? null : Math.round(used * 100);
+  const cls = pct == null ? "" : pct >= 95 ? "critical" : pct >= 85 ? "warn" : "";
+  const free = v.free_bytes != null ? bytes(v.free_bytes) : (v.free_gb != null ? `${v.free_gb} GB` : "—");
+  const space = v.total_bytes ? t("status.freeOf", { free, total: bytes(v.total_bytes) }) : t("status.free", { free });
+  const descr = `${v.name}: ${pct == null ? t("status.capacityUnknown") : t("status.pctUsed", { pct })}, ${space}`;
+  return el("div", { class: "volume" },
+    el("div", { class: "text-row" },
+      el("span", null, el("strong", null, v.name), v.type ? el("span", { class: "muted" }, ` ${v.type}`) : null),
+      el("span", null,
+        cls ? el("span", { class: "flag" }, cls === "critical" ? t("status.almostFull") + " · " : t("status.over85") + " · ") : null,
+        pct == null ? null : el("strong", null, `${pct}%`))),
+    pct == null ? null : el("div", { class: `gauge ${cls}`, role: "meter", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct, "aria-label": descr, title: descr },
+      el("span", { style: `width: ${pct}%` })),
+    el("div", { class: "muted" }, space));
+}
+
+// Where a QTS health event happened.
+function eventPlace(e) {
+  if (!e.on) return t("status.system");
+  if (e.on.kind === "volume") return t("status.eventVolume", { name: e.on.name }) + (e.on.status ? ` (${e.on.status})` : "");
+  return t("status.eventDisk", { name: e.on.name });
+}
+
+function card(d) {
+  const m = d.metrics;
+  const fresh = m && d.status === "on";
+  const buttons = [];
+  if (d.status !== "on" && d.wol !== "no" && d.has_mac) {
+    buttons.push(el("button", { type: "button", class: "primary", onclick: () => wake(d) }, d.wol === "untested" ? t("status.wakeUntested") : t("status.wake")));
+  }
+  buttons.push(el("button", { type: "button", onclick: ev => refresh(d, ev.target) }, t("status.refresh")));
+
+  let wakeLine = null;
+  if (d.wake) {
+    const a = d.wake;
+    wakeLine = el("p", { class: a.result === "not_up" ? "error" : (a.result === "up" ? "ok" : "warn") },
+      a.result === "up" ? t("status.wokeUp", { when: ago(a.when) })
+        : a.result === "not_up" ? t("status.wakeFailed", { when: ago(a.requested) })
+        : t("status.wakeWaiting", { when: ago(a.requested) }));
+  }
+
+  // Nine parts always present and always in the same order: empty when not
+  // needed, so the grid lines up the same parts across cards.
+  const part = (cls, ...children) => el("div", { class: `part ${cls}` }, ...children);
+  const fans = m && m.fans.length
+    ? t("status.rpm", { list: m.fans.map(v => v.failed ? t("status.fanFailed") : v.rpm).join(" · ") })
+    : "—";
+
+  return el("article", { class: "dev-card", "aria-label": d.name },
+    part("head",
+      el("div", null, el("h2", null, d.name), el("div", { class: "muted" }, d.address, m && m.model ? ` · ${m.model}` : "")),
+      el("span", { class: `state ${d.status}` }, el("span", { class: "dot", "aria-hidden": "true" }), stateText(d.status))),
+    part("muted", d.since ? t("status.since", { state: stateText(d.status), when: ago(d.since) }) + " · " : "", d.checked ? t("status.checked", { when: ago(d.checked) }) : ""),
+    part("messages",
+      wakeLine,
+      d.status !== "on" && d.wol === "no" ? el("p", { class: "muted", style: "margin: 0" }, t("status.noWol")) : null,
+      d.metrics_error && d.status === "on" ? el("p", { class: "error", style: "margin: 0" }, t("status.metricsError", { error: msg(d.metrics_error) })) : null,
+      !fresh && d.type === "qnap" && d.status === "on" && !d.metrics_error ? el("p", { class: "muted", style: "margin: 0" }, t("status.metricsReading")) : null),
+    part("numbers", ...(fresh ? [
+      number("CPU", m.cpu == null ? "—" : `${fmtNumber(m.cpu)}%`),
+      number(t("status.memoryUsed"), m.memory.total_mb ? `${Math.round((1 - m.memory.free_mb / m.memory.total_mb) * 100)}%` : "—"),
+      number(t("status.uptime"), duration(m.uptime_s)),
+      number(t("status.tempSystem"), m.temperatures.system == null ? "—" : `${m.temperatures.system} °C`),
+      number(t("status.tempCpu"), m.temperatures.cpu == null ? "—" : `${m.temperatures.cpu} °C`),
+      number(t("status.fans"), fans),
+    ] : [])),
+    part("qts-warnings", fresh && m.health && m.health.status && m.health.status !== "ok" ? [
+      el("div", { class: "flag warn" }, t("status.qtsReports", { status: m.health.status === "warning" ? t("status.qtsWarning") : m.health.status })),
+      el("ul", { class: "warnings", style: "margin-bottom: 0" }, ...m.health.events.map(e => el("li", null, t("status.eventLine", { place: eventPlace(e), code: e.code }))))] : []),
+    part("volumes", ...(fresh ? m.volumes.map(volume) : [])),
+    part("disks", fresh && m.disks.length ? el("div", { class: "scroll" }, el("table", { class: "compact" },
+      el("thead", null, el("tr", null, el("th", null, t("status.disk")), el("th", null, t("status.model")), el("th", null, t("status.health")), el("th", { class: "num" }, t("status.temp")))),
+      el("tbody", null, ...m.disks.map(k => {
+        const hot = k.temperature != null && k.temperature_threshold && k.temperature >= k.temperature_threshold;
+        const healthy = /^(ok|good)$/i.test(k.health);
+        return el("tr", null,
+          el("td", null, k.name || t("status.diskN", { n: k.number })),
+          el("td", { class: "muted" }, `${k.model} · ${k.capacity}`),
+          el("td", null, healthy ? el("span", null, "✓ ", k.health) : el("span", { class: "flag" }, k.health || "?")),
+          el("td", { class: "num" }, k.temperature == null ? "—" : `${k.temperature} °C`, hot ? el("span", { class: "flag" }, " " + t("status.hot")) : null));
+      })))) : null),
+    part("details", fresh ? el("details", null, el("summary", null, t("status.detailsSummary")),
+      el("div", { class: "muted" },
+        ...m.network.map(r => el("div", null, `${r.name}: ${r.connected ? t("status.linkUp") : t("status.linkDown")}${r.connected ? ` · ${r.speed} Mb/s · ${r.ip}` : ""} · ${r.mac}`)),
+        el("div", null, `${m.firmware || ""}${m.serial ? " · " + t("status.serial", { serial: m.serial }) : ""}`),
+        el("div", null, t("status.readWith", { account: m.account, when: ago(m.when) })))) : null),
+    part("buttons", ...buttons),
+  );
+}
+
+async function reload() {
+  const list = await call("GET", "/api/status");
+  $("#grid").replaceChildren(...list.map(card));
+}
+
+async function wake(d) {
+  const note = d.wol === "untested" ? "\n\n" + t("status.wolNeverTested") : "";
+  if (!confirm(t("status.confirmWake", { name: d.name }) + note)) return;
+  try { const r = await call("POST", `/api/devices/${d.id}/wake`); message(t("status.packetSent", { mac: r.mac }), "ok"); await reload(); }
+  catch (e) { message(e.message, "error"); }
+}
+
+async function refresh(d, button) {
+  button.disabled = true;
+  message(t("status.reading", { name: d.name }));
+  try { await call("POST", `/api/devices/${d.id}/refresh`); message(t("status.refreshed", { name: d.name }), "ok"); await reload(); }
+  catch (e) { message(e.message, "error"); }
+  finally { button.disabled = false; }
+}
+
+setInterval(() => { if (!document.hidden) reload().catch(() => {}); }, 15000);
+reveal(reload().catch(e => message(e.message, "error")));
+</script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+[
+  {
+    "id": "20260614183012-a1b2c3",
+    "type": "profile",
+    "machine": "livingroom-family",
+    "profile": "media",
+    "profile_name": "Media",
+    "mode": "add",
+    "created": "2026-06-14T18:30:00.000Z",
+    "status": "completed",
+    "restore": [
+      {
+        "letter": "K",
+        "path": "\\\\192.168.10.21\\Kids",
+        "status": "connected"
+      },
+      {
+        "letter": "V",
+        "path": "\\\\192.168.10.21\\Films",
+        "status": "connected"
+      }
+    ],
+    "operations": [
+      {
+        "letter": "W",
+        "status": "ok",
+        "message": "mounted",
+        "action": "mount",
+        "path": "\\\\192.168.10.21\\Series",
+        "old": null,
+        "device": "nas01",
+        "credential": "media",
+        "write": false,
+        "n": 1,
+        "when": "2026-06-14T18:36:00.000Z"
+      },
+      {
+        "letter": "Y",
+        "status": "ok",
+        "message": "mounted",
+        "action": "mount",
+        "path": "\\\\192.168.10.23\\Video-Archive",
+        "old": null,
+        "device": "nas03",
+        "credential": "media",
+        "write": false,
+        "n": 2,
+        "when": "2026-06-14T18:36:00.000Z"
+      }
+    ],
+    "delivered": "2026-06-14T18:33:00.000Z",
+    "closed": "2026-06-14T18:36:00.000Z"
+  },
+  {
+    "id": "20260615092840-d4e5f6",
+    "type": "map",
+    "machine": "laptop-marco-marco",
+    "created": "2026-06-15T09:28:00.000Z",
+    "status": "completed",
+    "restore": [
+      {
+        "letter": "M",
+        "path": "\\\\nas01\\Music",
+        "status": "connected"
+      },
+      {
+        "letter": "P",
+        "path": "\\\\nas01\\Projects",
+        "status": "connected"
+      },
+      {
+        "letter": "Z",
+        "path": "\\\\nas01\\Public",
+        "status": "connected"
+      }
+    ],
+    "operations": [
+      {
+        "letter": "V",
+        "status": "ok",
+        "message": "mounted",
+        "action": "mount",
+        "path": "\\\\nas01\\Films",
+        "old": null,
+        "device": "nas01",
+        "credential": null,
+        "write": false,
+        "n": 1,
+        "when": "2026-06-15T09:29:00.000Z"
+      }
+    ],
+    "delivered": "2026-06-15T09:28:30.000Z",
+    "closed": "2026-06-15T09:29:00.000Z"
+  }
+]

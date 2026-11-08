@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang = "en">
+<head>
+<meta charset = "utf-8">
+<meta name = "viewport" content = "width=device-width, initial-scale=1">
+<title data-i18n = "title.settings">Settings — NAS-Management</title>
+<meta name = "description" data-i18n-content = "meta.description" content = "Network drives, NAS status and credentials for a small Windows network.">
+<link rel = "icon" href = "icon.svg">
+<script src = "theme.js"></script>
+<link rel = "stylesheet" href = "style.css">
+<style>
+  .diff { display: grid; gap: 12px; }
+  .diff h3 { font-size: 14px; margin: 0 0 4px; }
+  .diff ul { margin: 0; padding-left: 20px; }
+  .diff p { margin: 0; }
+  .modes label.inline { align-items: start; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NAS-Management</h1>
+  <nav>
+    <a href = "/status.html" data-i18n = "nav.status">Status</a>
+    <a href = "/map.html" data-i18n = "nav.map">Map</a>
+    <a href = "/" data-i18n = "nav.devices">Devices</a>
+    <a href = "/drives.html" data-i18n = "nav.drives">Network drives</a>
+    <a href = "/settings.html" aria-current = "page" data-i18n = "nav.settings">Settings</a>
+  </nav>
+  <button type = "button" onclick = "logout()" data-i18n = "common.logout">Log out</button>
+</header>
+
+<main aria-busy = "true">
+  <p id = "message" role = "status" aria-live = "polite"></p>
+
+  <section>
+    <h2 data-i18n = "settings.exportTitle">Export the configuration</h2>
+    <p data-i18n = "settings.exportIntro">Saves devices, profiles, settings and the list of credentials in a JSON file. Passwords are not included: they only work on this server, for this Windows user.</p>
+    <p class = "muted" id = "export-counts"></p>
+    <p><a class = "button-link primary" href = "/api/config/export" download data-i18n = "settings.exportButton">Download the file</a></p>
+  </section>
+
+  <section>
+    <h2 data-i18n = "settings.importTitle">Import a configuration</h2>
+    <p data-i18n = "settings.importIntro">Loads a file exported from this page, here or on another installation. You see what changes before anything is written, and a backup copy of data/ is made first.</p>
+    <form id = "form-import">
+      <label><span data-i18n = "settings.fileLabel">Exported file</span> <input id = "file" type = "file" accept = ".json,application/json" required></label>
+      <fieldset class = "modes">
+        <legend data-i18n = "settings.modeLegend">Mode</legend>
+        <label class = "inline"><input type = "radio" name = "mode" value = "merge" checked> <span data-i18n = "settings.modeMerge">Merge: adds and updates by id, removes nothing</span></label>
+        <label class = "inline"><input type = "radio" name = "mode" value = "replace"> <span data-i18n = "settings.modeReplace">Replace: devices, profiles, credentials and settings become exactly those of the file</span></label>
+      </fieldset>
+      <p><button class = "primary" type = "submit" data-i18n = "settings.previewButton">Preview</button></p>
+    </form>
+    <div id = "preview" hidden>
+      <div class = "diff" id = "diff"></div>
+      <p class = "buttons"><button id = "do-import" type = "button" class = "primary" data-i18n = "settings.importButton">Import</button></p>
+    </div>
+  </section>
+</main>
+
+<script src = "common.js"></script>
+<script>
+let file = null;
+let mode = "merge";
+
+async function counts() {
+  const [devices, profiles, credentials] = await Promise.all([call("GET", "/api/devices"), call("GET", "/api/profiles"), call("GET", "/api/credentials")]);
+  $("#export-counts").textContent = t("settings.exportCounts", { devices: devices.length, profiles: profiles.length, credentials: credentials.length });
+}
+
+function resetPreview() {
+  $("#preview").hidden = true;
+  $("#diff").replaceChildren();
+}
+
+const names = list => list.length ? list.join(", ") : t("settings.none");
+
+// One block per kind: what is added, updated, removed, and how many stay as they are.
+function block(title, d, extra) {
+  const lines = [];
+  if (d.add.length) lines.push(el("li", null, t("settings.add"), " ", names(d.add)));
+  if (d.update.length) lines.push(el("li", null, t("settings.update"), " ", names(d.update)));
+  if (d.remove.length) lines.push(el("li", { class: "warn" }, t("settings.remove"), " ", names(d.remove)));
+  if (d.same.length) lines.push(el("li", { class: "muted" }, t("settings.same", { n: d.same.length })));
+  if (!lines.length && !(extra && extra.length)) lines.push(el("li", { class: "muted" }, t("settings.none")));
+  return el("div", null, el("h3", null, title), el("ul", null, ...lines, ...(extra || [])));
+}
+
+function showPreview(p) {
+  const parts = [];
+  if (p.file.exported) parts.push(el("p", { class: "muted" }, t("settings.fileFrom", { when: fmtDateTime(p.file.exported), version: p.file.app_version || "?" })));
+  if (p.nothing_to_do) parts.push(el("p", { class: "ok" }, t("settings.nothingToDo")));
+  parts.push(block(t("settings.devices"), p.devices));
+  parts.push(block(t("settings.credentials"), p.credentials,
+    p.credentials.no_password.length ? [el("li", { class: "warn" }, t("settings.noPassword"), " ", names(p.credentials.no_password))] : []));
+  parts.push(block(t("settings.profiles"), p.profiles,
+    p.profiles.skipped.map(s => el("li", { class: "warn" }, t(s.replaces_existing ? "settings.skippedLineRemoved" : "settings.skippedLine", { name: s.name, reason: msg(s.reason) })))));
+  const c = p.config;
+  const cfg = [el("li", { class: c.changed.length ? "" : "muted" }, c.changed.length ? t("settings.configChanged", { keys: c.changed.join(", ") }) : t("settings.none"))];
+  if (c.needs_restart) cfg.push(el("li", { class: "warn" }, t("settings.needsRestart")));
+  if (c.needs_install_service) cfg.push(el("li", { class: "warn" }, t("settings.needsInstallService")));
+  if (c.public_address_changed) cfg.push(el("li", { class: "warn" }, t("settings.publicAddressChanged")));
+  parts.push(el("div", null, el("h3", null, t("settings.config")), el("ul", null, ...cfg)));
+  if (p.warnings.length) parts.push(el("div", null, el("h3", null, t("settings.warnings")), el("ul", null, ...p.warnings.map(w => el("li", { class: "warn" }, msg(w))))));
+  $("#diff").replaceChildren(...parts);
+  $("#do-import").hidden = p.nothing_to_do;
+  $("#preview").hidden = false;
+}
+
+$("#file").addEventListener("change", () => { file = null; resetPreview(); message(""); });
+for (const r of document.querySelectorAll("input[name = mode]")) r.addEventListener("change", ev => { mode = ev.target.value; resetPreview(); });
+
+$("#form-import").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  resetPreview();
+  const f = $("#file").files[0];
+  if (!f) return message(t("settings.chooseFile"), "error");
+  try { file = JSON.parse(await f.text()); }
+  catch { file = null; return message(t("settings.fileNotJson"), "error"); }
+  try { message(""); showPreview(await call("POST", "/api/config/import/preview", { file, mode })); }
+  catch (e) { message(e.message, "error"); }
+});
+
+$("#do-import").addEventListener("click", async () => {
+  if (!file || !confirm(t(mode === "replace" ? "settings.confirmReplace" : "settings.confirmMerge"))) return;
+  try {
+    const r = await call("POST", "/api/config/import", { file, mode });
+    resetPreview();
+    message(t(r.config.needs_restart ? "settings.importedRestart" : "settings.imported", { backup: r.backup || "—" }), "ok");
+    await counts();
+    if (r.config.needs_restart) checkService();
+  } catch (e) { message(e.message, "error"); }
+});
+
+reveal(counts().catch(e => message(e.message, "error")));
+</script>
+</body>
+</html>

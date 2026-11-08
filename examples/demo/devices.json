@@ -1,0 +1,71 @@
+[
+  {
+    "id": "nas01",
+    "name": "nas01",
+    "type": "qnap",
+    "addresses": [
+      "192.168.10.21",
+      "nas01"
+    ],
+    "mac": [
+      "02:00:5E:10:00:21"
+    ],
+    "model": "TS-464",
+    "firmware": "QTS 5.2.1 build 2930",
+    "wol": "yes",
+    "notes": "Main storage. RAID 5 on 4 × 8 TB, plus one SSD volume for media."
+  },
+  {
+    "id": "nas02",
+    "name": "nas02",
+    "type": "qnap",
+    "addresses": [
+      "192.168.10.22",
+      "nas02"
+    ],
+    "mac": [
+      "02:00:5E:10:00:22"
+    ],
+    "model": "TS-233",
+    "firmware": "QTS 5.1.8 build 2823",
+    "wol": "no",
+    "notes": "Nightly backup target. No Wake-on-LAN: power button only."
+  },
+  {
+    "id": "nas03",
+    "name": "nas03",
+    "type": "qnap",
+    "addresses": [
+      "192.168.10.23",
+      "nas03"
+    ],
+    "mac": [
+      "02:00:5E:10:00:23"
+    ],
+    "model": "TS-873A",
+    "firmware": "QTS 5.2.1 build 2930",
+    "wol": "untested",
+    "notes": "Archive. Switched on once a week."
+  },
+  {
+    "id": "printer",
+    "name": "printer",
+    "type": "generic",
+    "addresses": [
+      "192.168.10.30"
+    ],
+    "mac": [],
+    "model": "",
+    "firmware": "",
+    "wol": "untested",
+    "notes": "Office printer.",
+    "detected": {
+      "when": "2026-05-16T10:00:00.000Z",
+      "open_ports": [
+        80,
+        443
+      ],
+      "booting": false
+    }
+  }
+]

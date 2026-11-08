@@ -1,0 +1,191 @@
+[
+  {
+    "id": "office-pc-anna",
+    "computer": "OFFICE-PC",
+    "user": "OFFICE-PC\\anna",
+    "name": "Office",
+    "managed": true,
+    "protected_letters": [],
+    "preferred_addresses": {},
+    "registered": "2026-05-06T10:00:00.000Z",
+    "snapshot": {
+      "when": "2026-06-15T09:58:00.000Z",
+      "drives": [
+        {
+          "letter": "M",
+          "path": "\\\\nas01\\Music",
+          "status": "connected"
+        },
+        {
+          "letter": "P",
+          "path": "\\\\nas01\\Projects",
+          "status": "connected"
+        },
+        {
+          "letter": "S",
+          "path": "\\\\nas01\\Documents\\Anna",
+          "status": "connected"
+        },
+        {
+          "letter": "X",
+          "path": "\\\\192.168.10.22\\Nightly",
+          "status": "connected"
+        }
+      ]
+    },
+    "windows_credentials": [
+      {
+        "target": "nas01",
+        "user": "anna"
+      },
+      {
+        "target": "192.168.10.22",
+        "user": "anna"
+      }
+    ],
+    "public_key": {
+      "n": "ySMelDXFGBQcpcvJKb4lykKv3OZ0zELACnxYE260q386Iafac43gi57z4G/yywqdybTvkToEVD7t67AD/ji7hjvlpZstmYAYafopPywUuZ7LhKfLkfADtEW8Qf6wL7YB5ICxdNapZjwy8P9cTQ9cWWBHVRvmV3UbcsurYsbsgiky6kLLdWIMBXyw67yb9OYecaKWXx2eleHZSNbf7Jjy98PUrPXR81ED4LFYh7x/sbjZ1cZqWja9w3fDvLbPC4uxy9kj2vuKqkJYvsC7H6TIrhW6rA7BaxfS3u4GVFeuk5zkkKAVKIxoGBuGLf/gwraMZbd5HjzFS283Fx/8nuCBKQ==",
+      "e": "AQAB"
+    },
+    "agent_version": "0.6.0",
+    "last_contact": "2026-06-15T09:59:00.000Z",
+    "ip": "192.168.10.51",
+    "resolutions": {
+      "nas01": [
+        "192.168.10.21"
+      ],
+      "nas02": [
+        "192.168.10.22"
+      ],
+      "nas03": [
+        "192.168.10.23"
+      ]
+    }
+  },
+  {
+    "id": "laptop-marco-marco",
+    "computer": "LAPTOP-MARCO",
+    "user": "LAPTOP-MARCO\\marco",
+    "name": "Laptop",
+    "managed": true,
+    "protected_letters": [
+      "Z"
+    ],
+    "preferred_addresses": {},
+    "registered": "2026-05-08T10:00:00.000Z",
+    "snapshot": {
+      "when": "2026-06-15T09:57:00.000Z",
+      "drives": [
+        {
+          "letter": "M",
+          "path": "\\\\nas01\\Music",
+          "status": "connected"
+        },
+        {
+          "letter": "P",
+          "path": "\\\\nas01\\Projects",
+          "status": "connected"
+        },
+        {
+          "letter": "V",
+          "path": "\\\\nas01\\Films",
+          "status": "connected"
+        },
+        {
+          "letter": "Z",
+          "path": "\\\\nas01\\Public",
+          "status": "connected"
+        }
+      ]
+    },
+    "windows_credentials": [
+      {
+        "target": "nas01",
+        "user": "marco"
+      }
+    ],
+    "public_key": {
+      "n": "tgwmIMRIUeQUs6FTcBI4tRcNukfjMJVMNXentK5ZoOIggganPE7KTOe3SESK3W0z5cFAPt2bqzxH1nxBGK8XeDJu/LD3+sqC5Ihd0ILGQvfcaLqtYz+q47bDxsfy2jgkfzwnKzhQsX4titX0aks1/+xVxrg2RH1rpV/bdcb6nmI+R5vhaFlPQ3NNVWD48ufZG6zmnEK2unK5amTyRv2Ymd9NsO6urd9QMUEmOUa2bDxtu91J6Okw2zMygDVv4nn9uJX2kUksF/LvW7Pol3r0Bs3nSjRIXRG5nOXrPMc25ly4FL3DY2f0gDTsN+pYsJESrLlP1wRqqUKSw1saB1hSKw==",
+      "e": "AQAB"
+    },
+    "agent_version": "0.6.0",
+    "last_contact": "2026-06-15T09:59:00.000Z",
+    "ip": "192.168.10.52",
+    "resolutions": {
+      "nas01": [
+        "192.168.10.21"
+      ],
+      "nas02": [
+        "127.0.0.1"
+      ],
+      "nas03": [
+        "192.168.10.23"
+      ]
+    }
+  },
+  {
+    "id": "livingroom-family",
+    "computer": "LIVINGROOM",
+    "user": "LIVINGROOM\\family",
+    "name": "Living room",
+    "managed": true,
+    "protected_letters": [],
+    "preferred_addresses": {
+      "nas01": "192.168.10.21"
+    },
+    "registered": "2026-05-11T10:00:00.000Z",
+    "snapshot": {
+      "when": "2026-06-14T08:00:00.000Z",
+      "drives": [
+        {
+          "letter": "K",
+          "path": "\\\\192.168.10.21\\Kids",
+          "status": "connected"
+        },
+        {
+          "letter": "V",
+          "path": "\\\\192.168.10.21\\Films",
+          "status": "connected"
+        },
+        {
+          "letter": "W",
+          "path": "\\\\192.168.10.21\\Series",
+          "status": "connected"
+        },
+        {
+          "letter": "Y",
+          "path": "\\\\192.168.10.23\\Video-Archive",
+          "status": "disconnected"
+        }
+      ]
+    },
+    "windows_credentials": [
+      {
+        "target": "192.168.10.21",
+        "user": "media"
+      },
+      {
+        "target": "192.168.10.23",
+        "user": "media"
+      }
+    ],
+    "public_key": {
+      "n": "ztCfBHP6JuxUYI497UbuHwEGoS9fj7eY8+JJmw6XE93tmrsrIsGJrhW30cPCQmvqBUV0x/KXh5hNJXXA+1XcI56BFeocJNcwk2t6W0KqVstRySQUL7zJhWjcE017fHLzCZHWAG6E5qUqfAVgAAL4i+q/1rBmb7uzDj9qQyNgvvF1xA9hA/ARORLNOMURfsuWb3ipPNgIsz2e1cu6sQr+yYmxOcvjyPz1Bh2Fb1fMu9Vxl1ZNyym44Em93Y/lAcd4qnCjlReY0FRYs0aevsex+1MpHOQ3tZn4/Skm9uobWUwFEIc9jED76FJhCo+LO9Zg1lWvNW4T4RF+MWXMIIw+mw==",
+      "e": "AQAB"
+    },
+    "agent_version": "0.5.2",
+    "last_contact": "2026-06-14T08:00:00.000Z",
+    "ip": "192.168.10.60",
+    "resolutions": {
+      "nas01": [
+        "192.168.10.21"
+      ],
+      "nas02": [
+        "192.168.10.22"
+      ],
+      "nas03": [
+        "192.168.10.23"
+      ]
+    }
+  }
+]
